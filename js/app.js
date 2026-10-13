@@ -98,7 +98,7 @@
     const el = root.querySelector('[data-id="' + id + '"]');
     if (el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
   }
-  function partOk(text) { const r = S.run; r.hint = false; r.wrong = {}; S.mood = 'happy'; r.feedback = { ok: true, text: text || praise() }; sfx('good'); render(); }
+  function partOk(text) { const r = S.run; r.hint = false; if (task().kind !== 'multi') r.wrong = {}; S.mood = 'happy'; r.feedback = { ok: true, text: text || praise() }; sfx('good'); render(); }
   function taskDone() {
     const r = S.run;
     if (r.taskErr === 0) r.correct++;
@@ -226,7 +226,7 @@
   function exportCsv() {
     const head = ['Оқушы', 'Ойын', 'Деңгей', 'Тапсырма саны', 'Бірден дұрыс', 'Қате', 'Кеңес', 'Уақыт (с)', 'Жұлдыз', 'Деңгей өзгерісі', 'Күні'];
     const rows = db.results.map((r) => { const c = db.children.find((x) => x.id === r.child); const g = game(r.game); return [c ? c.name : '?', g ? g.title : r.game, r.level, r.total, r.correct, r.errors, r.hints, r.secs, r.stars, r.change > 0 ? 'жоғарылады' : r.change < 0 ? 'төмендеді' : '', fmtDate(r.at)]; });
-    const csv = '﻿' + [head].concat(rows).map((r) => r.map((x) => '"' + String(x).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+    const csv = '﻿' + [head].concat(rows).map((r) => r.map((x) => { let v = String(x); if (/^[=+\-@]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; }).join(';')).join('\r\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     a.download = 'oina-uiren-natizheler.csv'; document.body.appendChild(a); a.click(); a.remove();
   }
@@ -240,7 +240,7 @@
     return `<header class="top">
       ${back ? btn(back, '<span aria-hidden="true">⬅</span> Артқа', 'btn ghost', 'aria-label="Артқа"') : '<span></span>'}
       <div class="toptitle">${esc(title || '')}</div>
-      ${c ? `<div class="me"><span class="av">${c.avatar}</span><span>${esc(c.name)}</span></div>` : '<span></span>'}
+      ${c ? `<div class="me"><span class="av">${esc(c.avatar)}</span><span>${esc(c.name)}</span></div>` : '<span></span>'}
     </header>`;
   }
 
@@ -269,7 +269,7 @@
   }
 
   function vPlayers() {
-    const list = db.children.map((c) => `<button class="pcard" data-act="pickChild" data-v="${c.id}"><span class="pav">${c.avatar}</span><span class="pname">${esc(c.name)}</span><span class="pst">${c.stickers.slice(-5).join('')}</span></button>`).join('');
+    const list = db.children.map((c) => `<button class="pcard" data-act="pickChild" data-v="${c.id}"><span class="pav">${esc(c.avatar)}</span><span class="pname">${esc(c.name)}</span><span class="pst">${esc(c.stickers.slice(-5).join(''))}</span></button>`).join('');
     const av = S.newAv || D.AVATARS[0];
     return `${topbar('toHome', 'Кім ойнайды?')}
     <main class="wrap">
@@ -298,7 +298,7 @@
       }).join('')}
         <button class="mcard brkcard ${brk ? 'pulse' : ''}" style="--bg:#FFEDE6;--ac:#FF7A59" data-act="toBreaks"><span class="mico">🤸</span><span class="mtitle">Сергіту сәті</span><small class="mlv">Демалып аламыз</small></button>
       </div>
-      ${c.stickers.length ? `<section class="card"><h2>Менің жапсырмаларым (${c.stickers.length})</h2><div class="stk">${c.stickers.map((s) => `<span>${s}</span>`).join('')}</div></section>` : ''}
+      ${c.stickers.length ? `<section class="card"><h2>Менің жапсырмаларым (${c.stickers.length})</h2><div class="stk">${c.stickers.slice(-40).map((s) => `<span>${esc(s)}</span>`).join('')}</div></section>` : ''}
       <div class="row center">${btn('toSettings', '⚙️ Баптаулар', 'btn ghost')}</div>
     </main>`;
   }
@@ -457,7 +457,7 @@
       const st = statsFor(sel.id);
       const recent = st.rs.slice(-12);
       detail = `<section class="card">
-        <h2>${sel.avatar} ${esc(sel.name)} — жеке прогресс</h2>
+        <h2>${esc(sel.avatar)} ${esc(sel.name)} — жеке прогресс</h2>
         <div class="kgrid">${D.GAMES.map((g) => { const s = statsFor(sel.id, g.key); const l = sel.settings.levels[g.key]; return `<div class="kcard" style="--ac:${g.accent}"><b>${g.icon} ${esc(g.title)}</b><span class="kl">${LEVEL_NAMES[l]} · ${esc(g.levels[l - 1])}</span><span>Ойын саны: ${s.n}</span><span>Бірден дұрыс: ${s.acc == null ? '—' : s.acc + '%'}</span><span>Кеңес: ${s.hints} · Қате: ${s.errors}</span><div class="bar"><i style="width:${s.acc || 0}%"></i></div></div>`; }).join('')}</div>
         <h3>Соңғы ойындар динамикасы (бірден дұрыс, %)</h3>
         ${recent.length ? `<div class="chart" role="img" aria-label="Соңғы ойындардағы нәтиже">${recent.map((r) => { const p = Math.round(r.correct * 100 / r.total); const g = game(r.game) || D.GAMES[0]; return `<div class="col" title="${esc(g.title)}, ${LEVEL_NAMES[r.level]}, ${fmtDate(r.at)}"><span class="v">${p}</span><i style="height:${Math.max(4, p)}%;background:${g.accent}"></i><span class="g">${g.icon}</span></div>`; }).join('')}</div>` : '<p class="hint">Әзірге ойын жоқ.</p>'}
@@ -471,7 +471,7 @@
         <p class="hint">Жалпы деңгей алты ойынның ағымдағы деңгейінің орташасы бойынша анықталады. Бұл — бәсекелік рейтинг емес, әр баланың жеке даму картасы.</p>
         <div class="legend">${[1, 2, 3, 4].map((l) => `<span class="lv${l}">${LEVEL_NAMES[l]} — ${LEVEL_DESC[l]}</span>`).join('')}</div>
         ${rows.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Оқушы</th><th>Жалпы деңгей</th>${D.GAMES.map((g) => `<th title="${esc(g.title)}">${g.icon}</th>`).join('')}<th>Ойын</th><th>Бірден дұрыс</th><th>Кеңес</th><th>Сергіту</th><th>Уақыт</th><th>Соңғы ойын</th></tr></thead><tbody>
-          ${rows.map((x) => `<tr class="${sel && sel.id === x.c.id ? 'sel' : ''}" data-act="tPick" data-v="${x.c.id}" tabindex="0"><td><b>${x.c.avatar} ${esc(x.c.name)}</b></td><td><span class="lvb lv${x.lvl}">${LEVEL_NAMES[x.lvl]}</span></td>${D.GAMES.map((g) => `<td>${x.c.settings.levels[g.key]}</td>`).join('')}<td>${x.st.n}</td><td>${x.st.acc == null ? '—' : x.st.acc + '%'}</td><td>${x.st.hints}</td><td>${x.br}</td><td>${fmtSecs(x.st.secs)}</td><td>${fmtDate(x.st.last)}</td></tr>`).join('')}
+          ${rows.map((x) => `<tr class="${sel && sel.id === x.c.id ? 'sel' : ''}" data-act="tPick" data-v="${x.c.id}" tabindex="0"><td><b>${esc(x.c.avatar)} ${esc(x.c.name)}</b></td><td><span class="lvb lv${x.lvl}">${LEVEL_NAMES[x.lvl]}</span></td>${D.GAMES.map((g) => `<td>${x.c.settings.levels[g.key]}</td>`).join('')}<td>${x.st.n}</td><td>${x.st.acc == null ? '—' : x.st.acc + '%'}</td><td>${x.st.hints}</td><td>${x.br}</td><td>${fmtSecs(x.st.secs)}</td><td>${fmtDate(x.st.last)}</td></tr>`).join('')}
         </tbody></table></div>` : '<p class="hint">Ойыншылар әлі қосылмаған.</p>'}
       </section>
       ${detail}
@@ -487,8 +487,13 @@
     applyBodyClasses();
     if ((S.screen === 'game' && !S.run) || (S.screen === 'end' && !S.end) || (S.screen === 'brk' && !S.brk)) S.screen = child() ? 'menu' : 'home';
     if (S.screen === 'teacher' && !S.teacherOk) S.screen = 'home';
+    const a = document.activeElement, key = a && root.contains(a) && a.dataset && a.dataset.act ? [a.dataset.act, a.dataset.v, a.dataset.g] : null;
     root.innerHTML = (VIEWS[S.screen] || vHome)();
-    const f = root.querySelector('#pname, #gate'); if (f) f.focus();
+    const f = root.querySelector('#pname, #gate'); if (f) { f.focus(); return; }
+    if (key) {
+      const el = Array.from(root.querySelectorAll('[data-act="' + key[0] + '"]')).find((x) => x.dataset.v === key[1] && x.dataset.g === key[2]);
+      if (el && !el.disabled) el.focus({ preventScroll: true });
+    }
   }
 
   // ---------- оқиғалар ----------

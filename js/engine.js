@@ -41,7 +41,7 @@
         const others = shuffle(pool.filter((x) => x.id !== c.id)).slice(0, k - 1);
         if (level < 3) {
           return { kind: 'choice', prompt: c.name + ' түсті тап', word: c.name, wordColor: c.hex,
-            options: shuffle([c].concat(others)).map((x) => ({ id: x.id, swatch: x.hex, label: x.name })), answer: c.id };
+            options: shuffle([c].concat(others)).map((x) => ({ id: x.id, swatch: x.hex, label: x.name, hideLabel: true })), answer: c.id };
         }
         const o = pick(c.objs);
         return { kind: 'choice', prompt: c.name + ' түсті затты тап', word: c.name, wordColor: c.hex,
@@ -55,7 +55,10 @@
       if (level === 3) {
         return Array.from({ length: n }, () => {
           const set = [];
-          shuffle(D.ANIMALS).forEach((a) => { if (set.length < 3 && !set.some((s) => s.home === a.home)) set.push(a); });
+          shuffle(D.ANIMALS).forEach((a) => {
+            const clash = set.some((s) => s.home === a.home || (s.ex || []).indexOf(a.home) >= 0 || (a.ex || []).indexOf(s.home) >= 0);
+            if (set.length < 3 && !clash) set.push(a);
+          });
           return { kind: 'match', prompt: 'Әр жануарды өз мекенімен жұпта',
             left: set.map((a) => ({ id: a.home, emoji: a.emoji, label: a.name })),
             right: shuffle(set.map((a) => ({ id: a.home, emoji: D.HOMES[a.home].emoji, label: D.HOMES[a.home].label }))) };
@@ -64,7 +67,7 @@
       const k = level === 1 ? 2 : 3;
       const pool = level === 1 ? D.ANIMALS.slice(0, 8) : D.ANIMALS;
       return cycle(pool, n).map((a) => {
-        const others = shuffle(Object.keys(D.HOMES).filter((h) => h !== a.home)).slice(0, k - 1);
+        const others = shuffle(Object.keys(D.HOMES).filter((h) => h !== a.home && (a.ex || []).indexOf(h) < 0)).slice(0, k - 1);
         return { kind: 'choice', prompt: a.q, hero: a.emoji, heroLabel: a.name,
           options: shuffle([a.home].concat(others)).map((h) => ({ id: h, emoji: D.HOMES[h].emoji, label: D.HOMES[h].label })), answer: a.home };
       });
@@ -81,7 +84,7 @@
       const pool = level === 1 ? D.ACTIONS.slice(0, 5) : D.ACTIONS;
       return cycle(pool, n).map((a) => {
         const others = shuffle(pool.filter((x) => x.id !== a.id)).slice(0, k - 1);
-        return { kind: 'choice', prompt: a.q, options: shuffle([a].concat(others)).map((x) => ({ id: x.id, emoji: x.emoji, label: x.label })), answer: a.id };
+        return { kind: 'choice', prompt: a.q, options: shuffle([a].concat(others)).map((x) => ({ id: x.id, emoji: x.emoji, label: x.label, hideLabel: true })), answer: a.id };
       });
     },
     items(level, n) {
@@ -95,7 +98,7 @@
       const k = level === 1 ? 2 : 3;
       const pool = level === 1 ? D.USES.slice(0, 8) : D.USES;
       return cycle(pool, n).map((u) => {
-        const others = shuffle(Object.keys(D.ITEMS).filter((x) => x !== u.a)).slice(0, k - 1);
+        const others = shuffle(Object.keys(D.ITEMS).filter((x) => x !== u.a && (u.ex || []).indexOf(x) < 0)).slice(0, k - 1);
         return { kind: 'choice', prompt: u.q, options: shuffle([u.a].concat(others)).map((x) => ({ id: x, emoji: D.ITEMS[x].emoji, label: D.ITEMS[x].label })), answer: u.a };
       });
     },
@@ -120,7 +123,7 @@
         if (Math.random() < 0.6) {
           const a = 1 + rnd(3), b = 1 + rnd(3), s = a + b;
           const opts = shuffle(range(Math.max(1, s - 2), s + 2).filter((x) => x !== s)).slice(0, 2).concat([s]).sort((x, y) => x - y);
-          return { kind: 'choice', prompt: a + ' қосу ' + b + ' нешеге тең?', heroSum: { emoji: e[0], a, b },
+          return { kind: 'choice', prompt: a + ' мен ' + b + ' қосылса, неше болады?', heroSum: { emoji: e[0], a, b },
             options: opts.map((x) => ({ id: String(x), num: x, label: D.NUM_WORDS[x] })), answer: String(s) };
         }
         const v = 6 + rnd(5);
@@ -131,24 +134,25 @@
     },
     shapes(level, n) {
       const S = D.SHAPES, C = D.SHAPE_COLORS;
+      const order = cycle(level === 1 ? S.slice(0, 3) : S, n);
       return Array.from({ length: n }, (_, i) => {
         if (level <= 2) {
-          const pool = level === 1 ? S.slice(0, 3) : S.slice(0, 5);
-          const t = pool[i % pool.length], k = level === 1 ? 2 : 3;
+          const pool = level === 1 ? S.slice(0, 3) : S;
+          const t = order[i], k = level === 1 ? 2 : 3;
           const col = pick(C).hex;
           const others = shuffle(pool.filter((x) => x.id !== t.id)).slice(0, k - 1);
           return { kind: 'choice', prompt: t.name + ' пішінін тап',
-            options: shuffle([t].concat(others)).map((x) => ({ id: x.id, shape: x.id, color: level === 1 ? col : pick(C).hex, label: x.name })), answer: t.id };
+            options: shuffle([t].concat(others)).map((x) => ({ id: x.id, shape: x.id, color: level === 1 ? col : pick(C).hex, label: x.name, hideLabel: true })), answer: t.id };
         }
         if (level === 3) return patternTask(['AB', 'AB', 'ABB', 'AAB'][rnd(4)], 3);
         // 4-деңгей: күрделі заңдылық немесе түс + пішін
         if (i % 2 === 0) return patternTask(['ABC', 'AABB', 'ABBC', 'ABAC'][rnd(4)], 4);
-        const ts = pick(S.slice(0, 5)), tc = pick(C);
-        const os = pick(S.slice(0, 5).filter((x) => x.id !== ts.id)), oc = pick(C.filter((x) => x.id !== tc.id));
-        const opts = [{ id: 'ok', shape: ts.id, color: tc.hex, label: tc.name + ' ' + ts.name.toLowerCase() },
-          { id: 'x1', shape: ts.id, color: oc.hex, label: oc.name + ' ' + ts.name.toLowerCase() },
-          { id: 'x2', shape: os.id, color: tc.hex, label: tc.name + ' ' + os.name.toLowerCase() },
-          { id: 'x3', shape: os.id, color: oc.hex, label: oc.name + ' ' + os.name.toLowerCase() }];
+        const ts = pick(S), tc = pick(C);
+        const os = pick(S.filter((x) => x.id !== ts.id)), oc = pick(C.filter((x) => x.id !== tc.id));
+        const opts = [{ id: 'ok', shape: ts.id, color: tc.hex, label: tc.name + ' ' + ts.name.toLowerCase(), hideLabel: true },
+          { id: 'x1', shape: ts.id, color: oc.hex, label: oc.name + ' ' + ts.name.toLowerCase(), hideLabel: true },
+          { id: 'x2', shape: os.id, color: tc.hex, label: tc.name + ' ' + os.name.toLowerCase(), hideLabel: true },
+          { id: 'x3', shape: os.id, color: oc.hex, label: oc.name + ' ' + os.name.toLowerCase(), hideLabel: true }];
         return { kind: 'choice', prompt: tc.name + ' ' + ts.acc + ' тап', options: shuffle(opts), answer: 'ok' };
       });
     }
@@ -172,9 +176,9 @@
     // Жауап заңдылықтың әр орнына түсуі үшін ұзындықты кездейсоқ таңдаймыз (кемінде бір толық қайталау көрінеді)
     const len = Math.min(full.length, 9, pat.length + 2 + rnd(pat.length));
     const seq = full.slice(0, len - 1), ans = full[len - 1];
-    const opts = letters.map((l) => ({ id: l, shape: map[l].shape, color: map[l].color, label: map[l].name }));
+    const opts = letters.map((l) => ({ id: l, shape: map[l].shape, color: map[l].color, label: map[l].name, hideLabel: true }));
     if (opts.length < nOpts) {
-      shapes.slice(letters.length).slice(0, nOpts - opts.length).forEach((s, i) => opts.push({ id: 'z' + i, shape: s.id, color: useColor ? cols[(letters.length + i) % cols.length].hex : cols[0].hex, label: s.name }));
+      shapes.slice(letters.length).slice(0, nOpts - opts.length).forEach((s, i) => opts.push({ id: 'z' + i, shape: s.id, color: useColor ? cols[(letters.length + i) % cols.length].hex : cols[0].hex, label: s.name, hideLabel: true }));
     }
     return { kind: 'choice', prompt: 'Келесісі қайсы? Заңдылықты жалғастыр', pattern: seq.map((l) => map[l]), options: shuffle(opts), answer: ans };
   }

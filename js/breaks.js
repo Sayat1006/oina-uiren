@@ -24,7 +24,9 @@ window.BREAKS = (function () {
       const moves = shuffle(D.MOVES).slice(0, 4);
       const beat = api.calm ? 1600 : 1200;
       startBtn('Орныңнан тұр! Ақботамен бірге қимылдайық', () => step(0));
+      let cur = -1;
       function step(i) {
+        if (i <= cur) return; cur = i;
         if (i >= moves.length) return finish();
         const m = moves[i];
         host.innerHTML = `<div class="mv">
@@ -116,7 +118,7 @@ window.BREAKS = (function () {
         const t0 = performance.now(); let last = -1;
         const loop = (now) => {
           if (stopped) return;
-          const el = now - t0; if (el >= total) return finish();
+          const el = Math.max(0, now - t0); if (el >= total) return finish();
           const pi = Math.floor(el / per), p = (el % per) / per;
           if (pi !== last) { last = pi; t.textContent = phases[pi][0]; api.speak(phases[pi][0]); }
           const [x, y] = phases[pi][1](p);

@@ -28,7 +28,8 @@ button:focus-visible,input:focus-visible,tr:focus-visible{outline:5px solid var(
 
 /* бейімдеу режимдері */
 body.big{--opt:200px;--emo:100px;--fs:22px;--h1:40px}
-body.calm *{animation:none !important;transition:none !important}
+body.calm .gscreen:not(.brkscreen) *,body.calm .wrap *,body.calm .home *{animation:none !important;transition:none !important}
+@media (prefers-reduced-motion:reduce){.gscreen:not(.brkscreen) *,.wrap *,.home *{animation:none !important;transition:none !important}}
 body.calm .burst{display:none}
 body.contrast{--ink:#000;--muted:#222;--line:#000;--pri:#1A0DAB;--pri2:#000;--pri3:#000}
 body.contrast{background:#fff}
