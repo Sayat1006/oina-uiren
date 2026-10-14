@@ -18,11 +18,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'assets', 'voice')
 
 STYLES = {
-    'say':   dict(length=1.06, noise=0.55, noise_w=0.75, pitch=1.03, vol=1.00),
-    'cheer': dict(length=0.92, noise=0.78, noise_w=0.95, pitch=1.10, vol=1.12),
-    'calm':  dict(length=1.18, noise=0.45, noise_w=0.60, pitch=0.99, vol=0.92),
-    'num':   dict(length=1.00, noise=0.50, noise_w=0.70, pitch=1.03, vol=1.00),
+    # length: сөйлеу ұзақтығы (1.0 — модельдің қалыпты жылдамдығы; үлкен болған сайын баяу).
+    # Ерекше білім беруді қажет ететін оқушыға арналғандықтан бәрі әдейі баяу жазылады.
+    # pause: сөйлемдер арасындағы үзіліс (секунд).
+    'say':   dict(length=1.40, noise=0.55, noise_w=0.70, pitch=1.03, vol=1.00, pause=0.55),
+    'cheer': dict(length=1.22, noise=0.75, noise_w=0.90, pitch=1.10, vol=1.10, pause=0.40),
+    'calm':  dict(length=1.50, noise=0.45, noise_w=0.60, pitch=0.99, vol=0.95, pause=0.65),
+    'num':   dict(length=1.35, noise=0.50, noise_w=0.65, pitch=1.03, vol=1.00, pause=0.30),
 }
+VERSION = 'slow2'  # стиль өзгерсе, файлдар қайта жазылуы үшін
 
 ONES = ['нөл', 'бір', 'екі', 'үш', 'төрт', 'бес', 'алты', 'жеті', 'сегіз', 'тоғыз']
 TENS = ['', 'он', 'жиырма', 'отыз', 'қырық', 'елу', 'алпыс', 'жетпіс', 'сексен', 'тоқсан']
@@ -64,7 +68,7 @@ def main():
     manifest = {}
     todo = []
     for p in phrases:
-        sid = hashlib.sha1(f"{args.speaker}|{p['key']}".encode('utf-8')).hexdigest()[:12]
+        sid = hashlib.sha1(f"{VERSION}|{args.speaker}|{p['key']}".encode('utf-8')).hexdigest()[:12]
         name = f"{p['style']}-{sid}.mp3"
         manifest[p['key']] = name
         if not os.path.exists(os.path.join(OUT, name)):
@@ -77,13 +81,19 @@ def main():
         cfg = SynthesisConfig(speaker_id=args.speaker, length_scale=st['length'], noise_scale=st['noise'], noise_w_scale=st['noise_w'])
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
             wav_path = tmp.name
+        sr = voice.config.sample_rate
+        gap = b'\x00\x00' * int(sr * st['pause'])
         with wave.open(wav_path, 'wb') as w:
-            voice.synthesize_wav(speakable(p['text']), w, syn_config=cfg)
-        sr = 22050
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+            # Әр сөйлем бөлек синтезделеді, арасына үзіліс қосылады
+            for i, chunk in enumerate(voice.synthesize(speakable(p['text']), syn_config=cfg)):
+                if i:
+                    w.writeframes(gap)
+                w.writeframes(chunk.audio_int16_bytes)
         af = (f"asetrate={int(sr * st['pitch'])},aresample={sr},atempo={1 / st['pitch']:.4f},"
               f"volume={st['vol']},silenceremove=start_periods=1:start_threshold=-50dB,"
               f"areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur=0.05")
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav_path, '-af', af, '-ac', '1', '-ar', '22050', '-b:a', '40k',
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav_path, '-af', af, '-ac', '1', '-ar', str(sr), '-b:a', '40k',
                         os.path.join(OUT, name)], check=True)
         os.unlink(wav_path)
 

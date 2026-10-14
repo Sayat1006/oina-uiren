@@ -288,7 +288,7 @@
 
   // ---------- қазақша дауыс (алдын ала жазылған нейрондық дауыс, ISSAI KazakhTTS) ----------
   // Әр сөйлем assets/voice/ ішінде mp3 ретінде тұр; кілт — «стиль|мәтін». Сандар «num» стилінде бөлек жазылған.
-  const VOICE = { map: null, token: 0, audio: null, missing: new Set() };
+  const VOICE = { map: null, token: 0, audio: null, missing: new Set(), rate: 1 }; // rate: педагог баптайтын жылдамдық
   const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
   const voiceKey = (style, text) => style + '|' + norm(text);
   function voiceLoad() {
@@ -324,7 +324,8 @@
       const next = () => {
         if (my !== VOICE.token || i >= files.length) return;
         a.src = 'assets/voice/' + files[i++];
-        a.onended = () => setTimeout(next, 60);
+        a.preservesPitch = true; a.playbackRate = VOICE.rate || 1;
+        a.onended = () => setTimeout(next, 260); // бөліктер арасында асықпай, анық үзіліс
         a.onerror = () => setTimeout(next, 10);
         const p = a.play(); if (p && p.catch) p.catch(() => {});
       };
@@ -359,7 +360,7 @@
 
   // ---------- сақтау ----------
   const KEY = 'oina-uiren.v3';
-  const DEFAULTS = { voice: true, sound: true, labels: true, big: false, calm: false, contrast: false, perRound: 5, hintAfter: 1, auto: true, breakEvery: 2,
+  const DEFAULTS = { voice: true, sound: true, labels: true, big: false, calm: false, contrast: false, perRound: 5, hintAfter: 1, auto: true, breakEvery: 2, voiceRate: 1,
     levels: { math: 1, time: 1, money: 1, read: 1, world: 1, life: 1 } };
   const store = {
     load() {

@@ -21,6 +21,7 @@
     document.body.classList.toggle('calm', !!s.calm);
     document.body.classList.toggle('contrast', !!s.contrast);
     document.body.classList.toggle('nolabels', !s.labels);
+    E.VOICE.rate = s.voiceRate || 1;
   }
   const speak = (parts, style) => { if (set().voice) E.say(parts, style); };
   const line = (k) => speak(E.LINES[k][0], E.LINES[k][1]);
@@ -430,6 +431,7 @@
       </section>
       <section class="card"><h2>Қолдау және қабылдау</h2>
         ${tog('voice', 'Ақботаның дауысы', 'Тапсырма мен мадақ таза қазақша нейрондық дауыспен айтылады (ISSAI KazakhTTS)')}
+        <div class="lvrow"><span>Дауыс жылдамдығы</span>${seg('setR', s.voiceRate || 1, [[1, 'Баяу'], [0.85, 'Өте баяу'], [0.72, 'Ең баяу']])}<small>Сөз түсінуі қиын оқушыға жылдамдықты азайтыңыз</small></div>
         ${tog('sound', 'Дыбыстық белгілер', 'Дұрыс жауапқа — қуанышты, қатеге — жұмсақ дыбыс')}
         ${tog('labels', 'Суреттің астындағы жазу', 'Оқи алатын оқушыға көмек. Өшірсе — тек сурет қалады')}
         ${tog('big', 'Үлкен батырмалар мен мәтін', 'Ұсақ моторикасы әлсіз балаға')}
@@ -535,6 +537,7 @@
     setN: (v) => { set().perRound = Number(v); save(); render(); },
     setH: (v) => { set().hintAfter = Number(v); save(); render(); },
     setB: (v) => { set().breakEvery = Number(v); save(); render(); },
+    setR: (v) => { set().voiceRate = Number(v); save(); render(); line('hello'); },
     tPick: (v) => { S.tchild = v; render(); },
     tSettings: (v) => { S.childId = v; go('settings'); },
     delChild: (v) => { const c = db.children.find((x) => x.id === v); if (c && confirm(c.name + ' және оның барлық нәтижесі өшіріледі. Жалғастырасыз ба?')) { db.children = db.children.filter((x) => x.id !== v); db.results = db.results.filter((r) => r.child !== v); db.breaks = db.breaks.filter((r) => r.child !== v); if (S.childId === v) S.childId = null; S.tchild = null; save(); render(); } },
