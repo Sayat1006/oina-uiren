@@ -272,7 +272,7 @@
     return `<main class="home">
       <section class="hero">
         <div class="hero-t">
-          <span class="eyebrow">5–6 сынып · ойнап үйренеміз</span>
+          <span class="eyebrow">Ойнап үйрен</span>
           <h1>Ойна да үйрен!</h1>
           <p>Сәлем! Мен — <b>Ақбота</b>. Бірге есеп шығарып, уақыт пен ақшаны үйреніп, оқып, өмірге керек дағдыларды меңгерейік!</p>
           <div class="row">${btn('toPlayers', '<span class="play-ico" aria-hidden="true"></span> Ойнауды бастау', 'btn big gold')}${btn('toGate', '👨‍👩‍👧 Ата-ана мен мұғалім', 'btn big glass')}</div>
