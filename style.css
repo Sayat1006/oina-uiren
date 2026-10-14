@@ -162,9 +162,8 @@ body.nolabels .opt .lbl:not(.always),body.nolabels .heroimg .lbl{display:none}
 .gstars{background:#FFF6D6;color:#7A5600;border-radius:999px;padding:8px 16px;font-weight:900;font-size:18px;white-space:nowrap}
 .play{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:20px 24px 32px;display:flex;flex-direction:column;align-items:center;gap:20px}
 .prompt{display:flex;align-items:center;gap:14px;max-width:100%}
-.say.big{display:flex;align-items:center;gap:16px;padding:14px 14px 14px 28px}
+.say.big{display:flex;align-items:center;gap:16px;padding:16px 28px}
 .say.big h1{font-size:var(--h1)}
-.prompt .speak{background:var(--ac);color:#fff;flex:none;box-shadow:0 4px 0 rgba(0,0,0,.18);border:0;width:60px;height:60px;padding:0;min-height:0;font-size:26px}
 .stage{width:100%;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);border-radius:36px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px;box-shadow:var(--sh1);backdrop-filter:blur(4px)}
 .heroimg{display:flex;flex-direction:column;align-items:center;gap:4px;background:#fff;border-radius:28px;padding:16px 32px;border:2px dashed color-mix(in srgb,var(--ac) 60%,#fff);box-shadow:var(--sh1)}
 .heroimg.wide{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:16px;padding:18px 28px;max-width:100%}

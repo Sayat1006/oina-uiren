@@ -21,11 +21,9 @@
     document.body.classList.toggle('calm', !!s.calm);
     document.body.classList.toggle('contrast', !!s.contrast);
     document.body.classList.toggle('nolabels', !s.labels);
-    E.VOICE.rate = s.voiceRate || 1;
+    E.SFXVOL.v = s.calm ? 0.6 : 1; // тыныш режимде дыбыс ақырынырақ
   }
-  const speak = (parts, style) => { if (set().voice) E.say(parts, style); };
-  const line = (k) => speak(E.LINES[k][0], E.LINES[k][1]);
-  const sfx = (k) => { if (set().sound) E.SFX[k](); };
+  const sfx = (k, arg) => { if (set().sound) E.SFX[k](arg); };
 
   // ---------- Ақбота (кейіпкер) ----------
   function mascot(mood, size) {
@@ -82,14 +80,9 @@
       sel: null, matched: {}, seq: [], found: [], si: 0, placed: {}, wrong: {}, hint: false, feedback: null, typed: '' };
     S.mood = 'happy';
     go('game');
-    setTimeout(() => speakTask(), 350);
+    setTimeout(() => sfx('task'), 200);
   }
   function task() { return S.run && S.run.tasks[S.run.i]; }
-  function speakTask() {
-    const t = task(); if (!t) return;
-    const v = t.voice || [t.prompt];
-    speak(t.kind === 'sort' ? v.concat([t.cards[S.run.si].label]) : v, 'say');
-  }
   const praise = () => E.pick(D.PRAISE);
 
   function wrong(id) {
@@ -97,27 +90,28 @@
     r.errors++; r.taskErr++; r.wrong[id] = true;
     sfx('soft'); S.mood = 'think';
     r.feedback = { ok: false, text: E.pick(D.TRY) };
-    if (r.taskErr >= set().hintAfter && !r.hint) { r.hint = true; r.hints++; }
-    render(); shake(id); speak(r.feedback.text, 'calm');
+    if (r.taskErr >= set().hintAfter && !r.hint) { r.hint = true; r.hints++; setTimeout(() => sfx('hint'), 420); }
+    render(); shake(id);
   }
   function shake(id) {
     const el = root.querySelector('[data-id="' + id + '"]');
     if (el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
   }
-  function partOk(text) { const r = S.run; r.hint = false; if (task().kind !== 'multi') r.wrong = {}; S.mood = 'happy'; r.feedback = { ok: true, text: text || praise() }; sfx('good'); render(); }
+  // snd: бөлік дұрыс болғандағы дыбыс (реттілікте — қадам сайын жоғарылайтын нота, сұрыптауда — «түсу»)
+  function partOk(text, snd, arg) { const r = S.run; r.hint = false; if (task().kind !== 'multi') r.wrong = {}; S.mood = 'happy'; r.feedback = { ok: true, text: text || praise() }; sfx(snd || 'part', arg); render(); }
   function taskDone() {
     const r = S.run;
     if (r.taskErr === 0) r.correct++;
     r.feedback = { ok: true, text: praise() };
     r.done = true; S.busy = true; S.mood = 'cheer';
-    sfx('good'); speak(r.feedback.text, 'cheer');
+    sfx('good');
     render(); burst();
     setTimeout(() => {
       S.busy = false;
       if (r !== S.run || S.screen !== 'game') return;
       if (r.i < r.tasks.length - 1) {
         Object.assign(r, { i: r.i + 1, taskErr: 0, done: false, sel: null, matched: {}, seq: [], found: [], si: 0, placed: {}, wrong: {}, hint: false, feedback: null, typed: '' });
-        S.mood = 'happy'; render(); speakTask();
+        S.mood = 'happy'; render(); sfx('task');
       } else finish();
     }, set().calm ? 1700 : 1300);
   }
@@ -137,7 +131,7 @@
   }
   function matchClick(side, idx) {
     const r = S.run, t = task(); if (r.done || S.busy) return;
-    if (side === 'L') { if (r.matched['L' + idx]) return; r.sel = idx; sfx('tap'); speak(t.left[idx].label, 'say'); r.feedback = null; render(); return; }
+    if (side === 'L') { if (r.matched['L' + idx]) return; r.sel = idx; sfx('pick'); r.feedback = null; render(); return; }
     if (r.matched['R' + idx]) return;
     if (r.sel == null) { r.feedback = { ok: false, text: E.LINES.matchFirst ? E.LINES.matchFirst[0] : 'Алдымен сол жақтан таңда' }; render(); return; }
     if (t.left[r.sel].id === t.right[idx].id) {
@@ -150,7 +144,7 @@
     const r = S.run, t = task(); if (r.done || S.busy || r.seq.indexOf(id) >= 0) return;
     if (id === r.seq.length) {
       r.seq.push(id);
-      if (r.seq.length === t.steps.length) taskDone(); else { partOk(E.LINES.seqOk[0]); speak(t.steps[id].label, 'say'); }
+      if (r.seq.length === t.steps.length) taskDone(); else partOk(E.LINES.seqOk[0], 'step', id);
     } else wrong('C' + id);
   }
   function sortClick(bin) {
@@ -158,13 +152,13 @@
     const card = t.cards[r.si];
     if (card.bin === bin) {
       r.placed[card.id] = bin; r.si++;
-      if (r.si === t.cards.length) taskDone(); else { partOk(E.LINES.sortOk[0]); speak(t.cards[r.si].label, 'say'); }
+      if (r.si === t.cards.length) taskDone(); else partOk(E.LINES.sortOk[0], 'drop');
     } else wrong('B' + bin);
   }
 
   function keyPress(k) {
     const r = S.run, t = task(); if (!r || r.done || S.busy || t.kind !== 'input') return;
-    if (k === 'back') r.typed = r.typed.slice(0, -1);
+    if (k === 'back') { if (r.typed) sfx('back'); r.typed = r.typed.slice(0, -1); }
     else if (k === 'ok') {
       if (!r.typed) return;
       if (r.typed === t.answer) return taskDone();
@@ -193,8 +187,9 @@
     const suggestBreak = c.settings.breakEvery > 0 && c.sinceBreak >= c.settings.breakEvery;
     S.end = { stars, correct: r.correct, total: r.tasks.length, change, sticker, level: r.level, newLevel: c.settings.levels[r.key], suggestBreak };
     sfx('win');
+    for (let k = 0; k < stars; k++) setTimeout(() => sfx('star'), 650 + k * 260); // әр жұлдызға бір дыбыс
+    if (change > 0) setTimeout(() => sfx('levelUp'), 650 + stars * 260);
     go('end');
-    speak([E.LINES[stars === 3 ? 'end3' : 'end'][0]].concat(change > 0 ? [E.LINES.levelUp[0]] : []).concat(suggestBreak ? [E.LINES.endBreak[0]] : []), 'cheer');
     burst(true);
   }
 
@@ -219,10 +214,10 @@
     S.brk = key; go('brk');
     const host = root.querySelector('#brkhost');
     brkStop = window.BREAKS.start(key, host, {
-      speak, sfx, calm: !!set().calm, mascot,
+      sfx, calm: !!set().calm, mascot,
       done: () => {
         const c = child(); if (c) { c.sinceBreak = 0; db.breaks.push({ child: c.id, key, at: Date.now() }); save(); }
-        brkStop = null; S.brkDone = key; render(); sfx('win'); line('breakDone'); burst(true);
+        brkStop = null; S.brkDone = key; render(); sfx('win'); burst(true);
       }
     });
   }
@@ -268,7 +263,7 @@
   }
 
   function vHome() {
-    const feats = [['🔊', 'Таза қазақша дауыс', 'Баяу, анық, жылы дауыс'], ['🎯', '8 ойын × 4 деңгей', 'Балаға қарай бейімделеді'], ['🤝', 'Қателесуден қорықпа', 'Ақбота көмектесіп, жігерлендіреді'], ['📊', 'Ата-ана мен мұғалімге', 'Баланың жетістігі мен өсуі']];
+    const feats = [['🎵', 'Көңілді дыбыстар', 'Әр әрекетке жұмсақ дыбыс'], ['🎯', '8 ойын × 4 деңгей', 'Балаға қарай бейімделеді'], ['🤝', 'Қателесуден қорықпа', 'Ақбота көмектесіп, жігерлендіреді'], ['📊', 'Ата-ана мен мұғалімге', 'Баланың жетістігі мен өсуі']];
     return `<main class="home">
       <section class="hero">
         <div class="hero-t">
@@ -420,7 +415,7 @@
         <span class="gstars" aria-label="Бірден дұрыс: ${r.correct}">⭐ ${r.correct}</span>
       </header>
       <main class="play">
-        <div class="prompt"><div class="buddy-m">${mascot(S.mood, 92)}</div><div class="say big"><h1>${ptxt}</h1>${btn('speak', '🔊', 'btn round speak', 'aria-label="Тапсырманы тыңдау"')}</div></div>
+        <div class="prompt"><div class="buddy-m">${mascot(S.mood, 92)}</div><div class="say big"><h1>${ptxt}</h1></div></div>
         <section class="stage">${body}</section>
         ${fb}
       </main>
@@ -477,9 +472,7 @@
         ${tog('auto', 'Деңгейді автоматты бейімдеу', '80%-дан жоғары кеңессіз орындаса — деңгей көтеріледі, 40%-дан төмен болса — түседі')}
       </section>
       <section class="card"><h2>Қолдау және қабылдау</h2>
-        ${tog('voice', 'Ақботаның дауысы', 'Тапсырма мен мадақ таза қазақша нейрондық дауыспен айтылады (ISSAI KazakhTTS)')}
-        <div class="lvrow"><span>Дауыс жылдамдығы</span>${seg('setR', s.voiceRate || 1, [[1, 'Баяу'], [0.85, 'Өте баяу'], [0.72, 'Ең баяу']])}<small>Сөз түсінуі қиын оқушыға жылдамдықты азайтыңыз</small></div>
-        ${tog('sound', 'Дыбыстық белгілер', 'Дұрыс жауапқа — қуанышты, қатеге — жұмсақ дыбыс')}
+        ${tog('sound', 'Дыбыс эффектілері', 'Әр әрекетке дыбыс: дұрыс жауапқа — қуанышты қоңырау, қатеге — жұмсақ дыбыс, кеңеске — жылтыр')}
         ${tog('labels', 'Суреттің астындағы жазу', 'Оқи алатын оқушыға көмек. Өшірсе — тек сурет қалады')}
         ${tog('big', 'Үлкен батырмалар мен мәтін', 'Ұсақ моторикасы әлсіз балаға')}
         ${tog('calm', 'Тыныш режим', 'Анимациялар мен жылдам ауысуларды азайтады')}
@@ -561,7 +554,7 @@
     toMenu: () => { S.run = null; go('menu'); },
     toSettings: () => go('settings'),
     toPlan: () => go('plan'),
-    toBreaks: () => { S.brkDone = null; go('breaks'); line('breaks'); },
+    toBreaks: () => { S.brkDone = null; go('breaks'); },
     brk: (v) => { S.brkDone = null; startBreak(v); },
     toGate: () => { if (S.teacherOk) return go('teacher'); S.err = ''; S.gate = { a: 3 + E.rnd(6), b: 3 + E.rnd(6) }; go('gate'); },
     gateOk: () => { const v = Number((document.getElementById('gate') || {}).value); if (v === S.gate.a * S.gate.b) { S.teacherOk = true; S.err = ''; go('teacher'); } else { S.err = 'Жауап қате. Қайталап көріңіз.'; render(); } },
@@ -570,12 +563,11 @@
       const name = ((document.getElementById('pname') || {}).value || '').trim();
       if (name.length < 2) { S.err = 'Баланың атын жазыңыз'; return render(); }
       const c = E.store.newChild(name, S.newAv || D.AVATARS[0]); db.children.push(c); save();
-      S.err = ''; S.newAv = null; S.childId = c.id; go('menu'); line('hello');
+      S.err = ''; S.newAv = null; S.childId = c.id; go('menu'); sfx('pick');
     },
-    pickChild: (v) => { S.childId = v; go('menu'); line('hello'); },
+    pickChild: (v) => { S.childId = v; go('menu'); sfx('pick'); },
     play: (v) => startGame(v),
     again: () => startGame(S.game),
-    speak: () => speakTask(),
     choose: (v) => choose(v),
     mL: (v) => matchClick('L', Number(v)),
     mR: (v) => matchClick('R', Number(v)),
@@ -586,7 +578,6 @@
     setN: (v) => { set().perRound = Number(v); save(); render(); },
     setH: (v) => { set().hintAfter = Number(v); save(); render(); },
     setB: (v) => { set().breakEvery = Number(v); save(); render(); },
-    setR: (v) => { set().voiceRate = Number(v); save(); render(); line('hello'); },
     tPick: (v) => { S.tchild = v; render(); },
     tSettings: (v) => { S.childId = v; go('settings'); },
     delChild: (v) => { const c = db.children.find((x) => x.id === v); if (c && confirm(c.name + ' және оның барлық нәтижесі өшіріледі. Жалғастырасыз ба?')) { db.children = db.children.filter((x) => x.id !== v); db.results = db.results.filter((r) => r.child !== v); db.breaks = db.breaks.filter((r) => r.child !== v); if (S.childId === v) S.childId = null; S.tchild = null; save(); render(); } },
@@ -608,10 +599,9 @@
     const k = e.target.dataset.set; if (!k) return;
     set()[k] = e.target.checked; save(); render();
   });
-  // Пернетақтадан ойнау: 1–9 сандары нұсқаны таңдайды, R — тапсырманы қайта тыңдау
+  // Пернетақтадан ойнау: 1–9 сандары нұсқаны таңдайды
   document.addEventListener('keydown', (e) => {
     if (S.screen !== 'game' || e.target.tagName === 'INPUT') return;
-    if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') return speakTask();
     const t = task();
     if (t && t.kind === 'input') {
       if (/^[0-9]$/.test(e.key)) keyPress(e.key);

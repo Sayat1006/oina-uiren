@@ -10,20 +10,6 @@
   const pad = D.pad;
   const hm = (h, m) => h + ':' + pad(m);
 
-  // ---------- сандар қазақша ----------
-  const ONES = ['нөл', 'бір', 'екі', 'үш', 'төрт', 'бес', 'алты', 'жеті', 'сегіз', 'тоғыз'];
-  const TENS = ['', 'он', 'жиырма', 'отыз', 'қырық', 'елу', 'алпыс', 'жетпіс', 'сексен', 'тоқсан'];
-  function kkNum(n) {
-    n = Math.floor(n);
-    if (n === 0) return 'нөл';
-    const out = [];
-    const th = Math.floor(n / 1000), h = Math.floor(n % 1000 / 100), t = Math.floor(n % 100 / 10), o = n % 10;
-    if (th) out.push(th === 1 ? 'мың' : kkNum(th) + ' мың');
-    if (h) out.push(h === 1 ? 'жүз' : ONES[h] + ' жүз');
-    if (t) out.push(TENS[t]);
-    if (o) out.push(ONES[o]);
-    return out.join(' ');
-  }
 
   // ---------- суреттер ----------
   function clockSvg(h, m, size) {
@@ -291,114 +277,73 @@
     }
   });
 
-  // ---------- дыбыс белгілері ----------
-  let ctx = null;
-  function tone(freqs, dur, type, vol, gap) {
-    try {
-      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === 'suspended') ctx.resume();
-      const t0 = ctx.currentTime;
-      freqs.forEach((f, i) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = type || 'sine'; o.frequency.value = f;
-        const s = t0 + i * (gap || dur * 0.8);
-        g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(vol || 0.18, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
-        o.connect(g); g.connect(ctx.destination); o.start(s); o.stop(s + dur + 0.05);
-      });
-    } catch (e) {}
+  // ---------- дыбыс эффектілері (Web Audio, файлсыз) ----------
+  // Жұмсақ, қорқытпайтын дыбыстар: қате жауапқа да ащы дыбыс емес, ақырын «бұп-бұп».
+  let ctx = null, master = null;
+  function ac() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createDynamicsCompressor(); // кенет қатты дыбыстан қорғайды
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
   }
-  const SFX = {
-    good: () => tone([660, 880, 1320], 0.16, 'sine', 0.1),
-    soft: () => tone([330, 294], 0.18, 'triangle', 0.06),
-    tap: () => tone([520], 0.06, 'sine', 0.05),
-    pop: () => tone([900 + rnd(400)], 0.08, 'sine', 0.1),
-    beat: () => tone([440], 0.09, 'triangle', 0.08),
-    flip: () => tone([700], 0.05, 'square', 0.03),
-    win: () => tone([523, 659, 784, 1047, 1319], 0.18, 'sine', 0.1)
-  };
+  const SFXVOL = { v: 1 }; // тыныш режимде азаяды
+  // Бір нота: f — жиілік, at — басталу кідірісі (с), dur — ұзақтығы, slide — соңғы жиілік (сырғанау)
+  function note(f, at, dur, o) {
+    o = o || {};
+    const c = ac(), t = c.currentTime + (at || 0);
+    const osc = c.createOscillator(), g = c.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(f, t);
+    if (o.slide) osc.frequency.exponentialRampToValueAtTime(o.slide, t + dur);
+    const vol = (o.vol || 0.12) * SFXVOL.v;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + (o.attack || 0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(master); osc.start(t); osc.stop(t + dur + 0.05);
+  }
+  // Қоңырау тембрі: негізгі нота + жоғары обертон
+  function bell(f, at, dur, vol) { note(f, at, dur, { vol }); note(f * 2.01, at, dur * 0.6, { vol: (vol || 0.12) * 0.35 }); note(f * 3.02, at, dur * 0.3, { vol: (vol || 0.12) * 0.12 }); }
+  // Сүзілген шу: «ушш» (жаңа тапсырма), «тырс» (көпіршік)
+  function noise(at, dur, from, to, vol) {
+    const c = ac(), t = c.currentTime + (at || 0);
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = buf; f.type = 'bandpass'; f.Q.value = 1.2;
+    f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime((vol || 0.08) * SFXVOL.v, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + dur + 0.02);
+  }
+  const C5 = 523.25, E5 = 659.25, G5 = 783.99, C6 = 1046.5, E6 = 1318.5, G6 = 1568;
+  const SCALE = [C5, 587.33, E5, 698.46, G5, 880, 987.77, C6, 1174.7, E6];
+  const safe = (fn) => (...a) => { try { fn(...a); } catch (e) {} };
+  const SFX = Object.fromEntries(Object.entries({
+    tap: () => note(620, 0, 0.07, { vol: 0.07 }),                                    // батырма, сан пернесі
+    back: () => note(420, 0, 0.08, { vol: 0.06, slide: 330 }),                        // өшіру
+    pick: () => { note(700, 0, 0.06, { vol: 0.07 }); note(940, 0.05, 0.08, { vol: 0.07 }); }, // сол жақтан таңдау
+    task: () => { noise(0, 0.32, 600, 2600, 0.05); bell(G5, 0.18, 0.35, 0.06); },    // жаңа тапсырма пайда болды
+    good: () => { bell(C6, 0, 0.5, 0.1); bell(E6, 0.09, 0.5, 0.09); bell(G6, 0.18, 0.7, 0.09); }, // дұрыс жауап
+    part: () => { bell(E6, 0, 0.35, 0.08); bell(G6, 0.07, 0.45, 0.07); },           // бір бөлігі дұрыс (сұрыптау, сәйкестендіру)
+    step: (i) => bell(SCALE[Math.min(i || 0, SCALE.length - 1)], 0, 0.45, 0.09),     // реттілік: әр қадам жоғарылай береді
+    drop: () => { note(240, 0, 0.12, { vol: 0.1, slide: 120, type: 'triangle' }); bell(C6, 0.06, 0.3, 0.06); }, // карточка қорапқа түсті
+    soft: () => { note(330, 0, 0.16, { vol: 0.07, type: 'triangle' }); note(262, 0.15, 0.24, { vol: 0.07, type: 'triangle' }); }, // қате — жұмсақ
+    hint: () => [0, 1, 2, 3, 4].forEach((k) => note(1400 + k * 260, k * 0.06, 0.18, { vol: 0.035 })), // кеңес жарқырады
+    star: () => { bell(1760, 0, 0.3, 0.06); bell(2350, 0.08, 0.4, 0.05); },          // жұлдыз
+    win: () => [C5, E5, G5, C6].forEach((f, k) => bell(f, k * 0.13, k === 3 ? 1.1 : 0.4, 0.1)), // ойын аяқталды
+    levelUp: () => { [C5, E5, G5, C6, E6].forEach((f, k) => bell(f, 0.6 + k * 0.1, 0.35, 0.08)); bell(G6, 1.15, 1.2, 0.09); }, // жаңа деңгей
+    pop: () => { noise(0, 0.07, 3000, 900, 0.12); note(900 + rnd(500), 0, 0.08, { vol: 0.08, slide: 400 }); }, // көпіршік
+    beat: () => note(440, 0, 0.12, { vol: 0.09, type: 'triangle' }),                 // қимыл жаттығуының ырғағы
+    flip: () => noise(0, 0.09, 1800, 3600, 0.06),                                     // карточка аударылды
+    breathIn: () => note(220, 0, 3.8, { vol: 0.05, slide: 330, attack: 1.5 }),        // дем алу — баяу көтерілетін дыбыс
+    breathOut: () => note(330, 0, 3.8, { vol: 0.05, slide: 196, attack: 0.6 }),       // дем шығару — баяу төмендейтін дыбыс
+    chime: () => bell(E6, 0, 0.6, 0.06)                                              // көз жаттығуының кезеңі ауысты
+  }).map(([k, fn]) => [k, safe(fn)]));
 
-  // ---------- қазақша дауыс (алдын ала жазылған нейрондық дауыс, ISSAI KazakhTTS) ----------
-  // Әр сөйлем assets/voice/ ішінде mp3 ретінде тұр; кілт — «стиль|мәтін». Сандар «num» стилінде бөлек жазылған.
-  const VOICE = { map: null, token: 0, audio: null, missing: new Set(), rate: 1 }; // rate: педагог баптайтын жылдамдық
-  const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
-  const voiceKey = (style, text) => style + '|' + norm(text);
-  function voiceLoad() {
-    if (VOICE.loading) return VOICE.loading;
-    VOICE.loading = fetch('assets/voice/manifest.json').then((r) => r.ok ? r.json() : {}).then((m) => { VOICE.map = m || {}; }).catch(() => { VOICE.map = {}; });
-    return VOICE.loading;
-  }
-  function partsToClips(parts, style) {
-    const out = [];
-    (Array.isArray(parts) ? parts : [parts]).forEach((p) => {
-      if (p === null || p === undefined || p === '') return;
-      const isNum = typeof p === 'number';
-      const text = isNum ? kkNum(p) : norm(p);
-      if (!text || /^[.,!?:;]+$/.test(text)) return;
-      out.push({ k: voiceKey(isNum ? 'num' : style, text), text, style: isNum ? 'num' : style });
-    });
-    return out;
-  }
-  // Сөйлемге топтау: санды сөйлем («Айжанда отыз төрт алма бар еді.») тұтас бір сөйлем болып жазылады,
-  // сонда интонация үзілмейді. Тұтас файл жоқ болса, бөліктері (frags) жеке-жеке ойнатылады.
-  const OPS = /^(қосу|алу|көбейту|бөлу)$/;
-  function voiceUnits(parts, style) {
-    const groups = []; let cur = [];
-    (Array.isArray(parts) ? parts : [parts]).forEach((p) => {
-      if (p === null || p === undefined || p === '') return;
-      cur.push(p);
-      if (typeof p === 'string' && /[.!?:]\s*$/.test(p)) { groups.push(cur); cur = []; }
-    });
-    if (cur.length) groups.push(cur);
-    return groups.map((g) => {
-      const frags = partsToClips(g, style);
-      let whole = null;
-      const words = g.filter((x) => typeof x === 'string');
-      if (frags.length > 1 && g.some((x) => typeof x === 'number') && words.some((w) => !OPS.test(norm(w)))) {
-        const text = frags.map((c, i) => {
-          const nx = frags[i + 1];
-          return nx && !/[.,!?:;]$/.test(c.text) && /^[А-ЯӘҒҚҢӨҰҮҺІЁA-Z]/.test(nx.text) ? c.text + '.' : c.text;
-        }).join(' ');
-        const cap = text.charAt(0).toUpperCase() + text.slice(1);
-        whole = { k: voiceKey(style, cap), text: cap, style };
-      }
-      return { whole, frags };
-    });
-  }
-  function stop() {
-    VOICE.token++;
-    if (VOICE.audio) { try { VOICE.audio.pause(); } catch (e) {} }
-  }
-  // parts: жол, сан немесе олардың тізімі; style: say (нұсқау) | cheer (қуаныш) | calm (жұмсақ қолдау)
-  function say(parts, style) {
-    stop();
-    const my = VOICE.token;
-    const run = () => {
-      if (my !== VOICE.token) return;
-      const files = []; // [файл, кейінгі үзіліс мс]
-      voiceUnits(parts, style || 'say').forEach((u) => {
-        const wf = u.whole && VOICE.map[u.whole.k];
-        const clips = wf ? [{ f: wf, text: u.whole.text }] : u.frags.map((c) => { const f = VOICE.map[c.k]; if (!f) VOICE.missing.add(c.k); return { f, text: c.text }; }).filter((c) => c.f);
-        // Сөйлем ішінде — қысқа табиғи үзіліс, сөйлемдер арасында — ұзағырақ
-        clips.forEach((c, j) => files.push([c.f, j === clips.length - 1 || /[.!?:]$/.test(c.text) ? 420 : 110]));
-      });
-      let i = 0;
-      const a = VOICE.audio || (VOICE.audio = new Audio());
-      const next = () => {
-        if (my !== VOICE.token || i >= files.length) return;
-        const [f, gap] = files[i++];
-        a.src = 'assets/voice/' + f;
-        a.preservesPitch = true; a.playbackRate = VOICE.rate || 1;
-        a.onended = () => setTimeout(next, gap / (VOICE.rate || 1)); // баяу режимде үзіліс те ұзарады
-        a.onerror = () => setTimeout(next, 10);
-        const p = a.play(); if (p && p.catch) p.catch(() => {});
-      };
-      next();
-    };
-    if (VOICE.map) run(); else voiceLoad().then(run);
-  }
-  voiceLoad();
 
-  // Тұрақты сөйлемдер (дауыс файлдарын жасау скрипті де осыларды жинайды)
+  // Тұрақты сөйлемдер (кері байланыс жазулары)
   const LINES = {
     hello: ['Сәлем! Ойын таңда.', 'cheer'],
     breakAsk: ['Біраз ойнадық! Сергіту сәтін жасайық па?', 'cheer'],
@@ -424,7 +369,7 @@
 
   // ---------- сақтау ----------
   const KEY = 'oina-uiren.v3';
-  const DEFAULTS = { voice: true, sound: true, labels: true, big: false, calm: false, contrast: false, perRound: 5, hintAfter: 1, auto: true, breakEvery: 2, voiceRate: 1,
+  const DEFAULTS = { sound: true, labels: true, big: false, calm: false, contrast: false, perRound: 5, hintAfter: 1, auto: true, breakEvery: 2,
     levels: { math: 1, time: 1, money: 1, read: 1, world: 1, life: 1, home: 1, emo: 1 } };
   const store = {
     load() {
@@ -446,5 +391,5 @@
     newChild(name, avatar) { return { id: uid(), name, avatar, created: Date.now(), stickers: [], sinceBreak: 0, settings: JSON.parse(JSON.stringify(DEFAULTS)) }; }
   };
 
-  window.ENGINE = { MAKE, SFX, say, stopVoice: stop, VOICE, voiceKey, partsToClips, voiceUnits, kkNum, LINES, store, shuffle, pick, uid, rnd, DEFAULTS, clockSvg, moneySvg, lightSvg };
+  window.ENGINE = { MAKE, SFX, SFXVOL, LINES, store, shuffle, pick, uid, rnd, DEFAULTS, clockSvg, moneySvg, lightSvg };
 })();
