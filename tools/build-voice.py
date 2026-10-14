@@ -21,12 +21,13 @@ STYLES = {
     # length: сөйлеу ұзақтығы (1.0 — модельдің қалыпты жылдамдығы; үлкен болған сайын баяу).
     # Ерекше білім беруді қажет ететін оқушыға арналғандықтан бәрі әдейі баяу жазылады.
     # pause: сөйлемдер арасындағы үзіліс (секунд).
-    'say':   dict(length=1.40, noise=0.55, noise_w=0.70, pitch=1.03, vol=1.00, pause=0.55),
-    'cheer': dict(length=1.22, noise=0.75, noise_w=0.90, pitch=1.10, vol=1.10, pause=0.40),
-    'calm':  dict(length=1.50, noise=0.45, noise_w=0.60, pitch=0.99, vol=0.95, pause=0.65),
-    'num':   dict(length=1.35, noise=0.50, noise_w=0.65, pitch=1.03, vol=1.00, pause=0.30),
+    # lufs: дыбыс қаттылығы (EBU R128). Барлық файл бірдей қаттылықта естіледі, мадақ сәл қаттырақ, қолдау сәл ақырын.
+    'say':   dict(length=1.40, noise=0.55, noise_w=0.70, pitch=1.03, lufs=-16, pause=0.55),
+    'cheer': dict(length=1.22, noise=0.75, noise_w=0.90, pitch=1.10, lufs=-15, pause=0.40),
+    'calm':  dict(length=1.50, noise=0.45, noise_w=0.60, pitch=0.99, lufs=-17.5, pause=0.65),
+    'num':   dict(length=1.35, noise=0.50, noise_w=0.65, pitch=1.03, lufs=-16, pause=0.30),
 }
-VERSION = 'slow2'  # стиль өзгерсе, файлдар қайта жазылуы үшін
+VERSION = 'clear3'  # стиль өзгерсе, файлдар қайта жазылуы үшін
 
 ONES = ['нөл', 'бір', 'екі', 'үш', 'төрт', 'бес', 'алты', 'жеті', 'сегіз', 'тоғыз']
 TENS = ['', 'он', 'жиырма', 'отыз', 'қырық', 'елу', 'алпыс', 'жетпіс', 'сексен', 'тоқсан']
@@ -90,10 +91,19 @@ def main():
                 if i:
                     w.writeframes(gap)
                 w.writeframes(chunk.audio_int16_bytes)
-        af = (f"asetrate={int(sr * st['pitch'])},aresample={sr},atempo={1 / st['pitch']:.4f},"
-              f"volume={st['vol']},silenceremove=start_periods=1:start_threshold=-50dB,"
-              f"areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur=0.05")
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav_path, '-af', af, '-ac', '1', '-ar', str(sr), '-b:a', '40k',
+        # Тембр, төменгі гуілді кесу, басы мен соңындағы үнсіздікті алу, жұмсақ кіріс/шығыс (шертпесіз)
+        base = (f"asetrate={int(sr * st['pitch'])},aresample={sr},atempo={1 / st['pitch']:.4f},highpass=f=70,"
+                f"silenceremove=start_periods=1:start_threshold=-50dB,"
+                f"areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,"
+                f"afade=t=in:d=0.012,areverse,afade=t=in:d=0.04,areverse,apad=pad_dur=0.05")
+        # Қаттылықты екі өтуде теңестіру: алдымен өлшеу, сосын сызықтық түзету
+        ln = f"loudnorm=I={st['lufs']}:TP=-1.5:LRA=11"
+        r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', wav_path, '-af', base + ',' + ln + ':print_format=json', '-f', 'null', '-'],
+                           capture_output=True, text=True, check=True)
+        m = json.loads(r.stderr[r.stderr.rindex('{'):r.stderr.rindex('}') + 1])
+        ln2 = (f"{ln}:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
+               f":measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav_path, '-af', base + ',' + ln2, '-ac', '1', '-ar', str(sr), '-b:a', '64k',
                         os.path.join(OUT, name)], check=True)
         os.unlink(wav_path)
 

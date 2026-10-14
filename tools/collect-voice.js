@@ -11,12 +11,14 @@ for (const f of ['js/data.js', 'js/engine.js']) vm.runInContext(fs.readFileSync(
 const D = ctx.window.DATA, E = ctx.window.ENGINE;
 
 const out = new Map();
-const add = (parts, style) => E.partsToClips(parts, style).forEach((c) => out.set(c.k, { key: c.k, text: c.text, style: c.style }));
+const put = (c) => out.set(c.k, { key: c.k, text: c.text, style: c.style });
+// Тұтас сөйлем де, оның бөліктері де жазылады (кездейсоқ іріктеуде қалып қойған сөйлем бөліктерімен айтылады)
+const add = (parts, style) => E.voiceUnits(parts, style).forEach((u) => { if (u.whole) put(u.whole); u.frags.forEach(put); });
 
 // 1) Генераторлар: әр ойын, әр деңгей, көп рет
 for (const g of Object.keys(E.MAKE)) {
   for (let level = 1; level <= 4; level++) {
-    for (let rep = 0; rep < 800; rep++) {
+    for (let rep = 0; rep < 3000; rep++) {
       for (const t of E.MAKE[g](level, 8)) {
         add(t.voice || [t.prompt], 'say');
         if (t.kind === 'seq') t.steps.forEach((s) => add(s.label, 'say'));

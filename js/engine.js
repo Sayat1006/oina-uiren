@@ -338,6 +338,32 @@
     });
     return out;
   }
+  // Сөйлемге топтау: санды сөйлем («Айжанда отыз төрт алма бар еді.») тұтас бір сөйлем болып жазылады,
+  // сонда интонация үзілмейді. Тұтас файл жоқ болса, бөліктері (frags) жеке-жеке ойнатылады.
+  const OPS = /^(қосу|алу|көбейту|бөлу)$/;
+  function voiceUnits(parts, style) {
+    const groups = []; let cur = [];
+    (Array.isArray(parts) ? parts : [parts]).forEach((p) => {
+      if (p === null || p === undefined || p === '') return;
+      cur.push(p);
+      if (typeof p === 'string' && /[.!?:]\s*$/.test(p)) { groups.push(cur); cur = []; }
+    });
+    if (cur.length) groups.push(cur);
+    return groups.map((g) => {
+      const frags = partsToClips(g, style);
+      let whole = null;
+      const words = g.filter((x) => typeof x === 'string');
+      if (frags.length > 1 && g.some((x) => typeof x === 'number') && words.some((w) => !OPS.test(norm(w)))) {
+        const text = frags.map((c, i) => {
+          const nx = frags[i + 1];
+          return nx && !/[.,!?:;]$/.test(c.text) && /^[А-ЯӘҒҚҢӨҰҮҺІЁA-Z]/.test(nx.text) ? c.text + '.' : c.text;
+        }).join(' ');
+        const cap = text.charAt(0).toUpperCase() + text.slice(1);
+        whole = { k: voiceKey(style, cap), text: cap, style };
+      }
+      return { whole, frags };
+    });
+  }
   function stop() {
     VOICE.token++;
     if (VOICE.audio) { try { VOICE.audio.pause(); } catch (e) {} }
@@ -348,15 +374,21 @@
     const my = VOICE.token;
     const run = () => {
       if (my !== VOICE.token) return;
-      const files = [];
-      partsToClips(parts, style || 'say').forEach((c) => { const f = VOICE.map[c.k]; if (f) files.push(f); else VOICE.missing.add(c.k); });
+      const files = []; // [файл, кейінгі үзіліс мс]
+      voiceUnits(parts, style || 'say').forEach((u) => {
+        const wf = u.whole && VOICE.map[u.whole.k];
+        const clips = wf ? [{ f: wf, text: u.whole.text }] : u.frags.map((c) => { const f = VOICE.map[c.k]; if (!f) VOICE.missing.add(c.k); return { f, text: c.text }; }).filter((c) => c.f);
+        // Сөйлем ішінде — қысқа табиғи үзіліс, сөйлемдер арасында — ұзағырақ
+        clips.forEach((c, j) => files.push([c.f, j === clips.length - 1 || /[.!?:]$/.test(c.text) ? 420 : 110]));
+      });
       let i = 0;
       const a = VOICE.audio || (VOICE.audio = new Audio());
       const next = () => {
         if (my !== VOICE.token || i >= files.length) return;
-        a.src = 'assets/voice/' + files[i++];
+        const [f, gap] = files[i++];
+        a.src = 'assets/voice/' + f;
         a.preservesPitch = true; a.playbackRate = VOICE.rate || 1;
-        a.onended = () => setTimeout(next, 260); // бөліктер арасында асықпай, анық үзіліс
+        a.onended = () => setTimeout(next, gap / (VOICE.rate || 1)); // баяу режимде үзіліс те ұзарады
         a.onerror = () => setTimeout(next, 10);
         const p = a.play(); if (p && p.catch) p.catch(() => {});
       };
@@ -414,5 +446,5 @@
     newChild(name, avatar) { return { id: uid(), name, avatar, created: Date.now(), stickers: [], sinceBreak: 0, settings: JSON.parse(JSON.stringify(DEFAULTS)) }; }
   };
 
-  window.ENGINE = { MAKE, SFX, say, stopVoice: stop, VOICE, voiceKey, partsToClips, kkNum, LINES, store, shuffle, pick, uid, rnd, DEFAULTS, clockSvg, moneySvg, lightSvg };
+  window.ENGINE = { MAKE, SFX, say, stopVoice: stop, VOICE, voiceKey, partsToClips, voiceUnits, kkNum, LINES, store, shuffle, pick, uid, rnd, DEFAULTS, clockSvg, moneySvg, lightSvg };
 })();
