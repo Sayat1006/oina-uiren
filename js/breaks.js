@@ -2,7 +2,6 @@
 window.BREAKS = (function () {
   const D = window.DATA;
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const NUMS = ['бір', 'екі', 'үш', 'төрт', 'бес', 'алты', 'жеті', 'сегіз', 'тоғыз', 'он'];
 
   function start(key, host, api) {
     const timers = [];
@@ -11,10 +10,12 @@ window.BREAKS = (function () {
     const I = (f, ms) => { const id = setInterval(() => { if (!stopped) f(); }, ms); timers.push(id); return id; };
     const stop = () => { stopped = true; timers.forEach((t) => { clearTimeout(t); clearInterval(t); }); if (raf) cancelAnimationFrame(raf); };
     const finish = () => { stop(); api.done(); };
-    const startBtn = (text, cb) => {
-      host.innerHTML = `<div class="brk-intro">${api.mascot('happy', 130)}<p class="big">${text}</p><button class="btn big primary" data-b="go">▶ Бастау</button></div>`;
+    const L = window.ENGINE.LINES;
+    const say = (k) => api.speak(L[k][0], L[k][1]);
+    const startBtn = (k, cb) => {
+      host.innerHTML = `<div class="brk-intro">${api.mascot('happy', 130)}<p class="big">${L[k][0]}</p><button class="btn big primary" data-b="go">▶ Бастау</button></div>`;
       host.querySelector('[data-b=go]').addEventListener('click', cb);
-      api.speak(text);
+      say(k);
     };
     ({ move, breath, bubbles, eyes, memory })[key]();
     return stop;
@@ -23,7 +24,7 @@ window.BREAKS = (function () {
     function move() {
       const moves = shuffle(D.MOVES).slice(0, 4);
       const beat = api.calm ? 1600 : 1200;
-      startBtn('Орныңнан тұр! Ақботамен бірге қимылдайық', () => step(0));
+      startBtn('moveIntro', () => step(0));
       let cur = -1;
       function step(i) {
         if (i <= cur) return; cur = i;
@@ -38,13 +39,13 @@ window.BREAKS = (function () {
           <button class="btn ghost" data-b="next">Келесі ➜</button>
         </div>`;
         host.querySelector('[data-b=next]').addEventListener('click', () => { clearAll(); step(i + 1); });
-        api.speak(m.text);
+        api.speak(m.text, 'cheer');
         let n = 0;
         const iv = I(() => {
           n++; api.sfx('beat');
           host.querySelector('.mv-count b').textContent = n;
           const d = host.querySelectorAll('.mv-dots i')[n - 1]; if (d) d.className = 'on';
-          if (n <= 10) api.speak(NUMS[n - 1]);
+          if (n <= 10) api.speak(n);
           if (n >= m.count) { clearInterval(iv); T(() => step(i + 1), 1300); }
         }, beat);
         function clearAll() { clearInterval(iv); }
@@ -54,7 +55,7 @@ window.BREAKS = (function () {
     // 2. Шарды үрлейміз (тыныс алу)
     function breath() {
       const cycles = 4;
-      startBtn('Ыңғайлы отыр. Шармен бірге баяу дем аламыз', () => {
+      startBtn('breathIntro', () => {
         host.innerHTML = `<div class="br">
           <div class="br-stage"><div class="br-ball"><span class="emo">🎈</span></div></div>
           <h1 class="br-text">Дайындал…</h1>
@@ -64,11 +65,11 @@ window.BREAKS = (function () {
         let c = 0;
         const cycle = () => {
           if (c >= cycles) return finish();
-          txt.textContent = 'Мұрныңмен дем ал…'; api.speak('Дем ал');
+          txt.textContent = 'Мұрныңмен дем ал…'; say('breathIn');
           ball.style.transition = 'transform 4s ease-in-out'; ball.style.transform = 'scale(1.9)';
-          T(() => { txt.textContent = 'Ұста…'; }, 4000);
+          T(() => { txt.textContent = 'Ұста…'; say('breathHold'); }, 4000);
           T(() => {
-            txt.textContent = 'Ақырын үрле…'; api.speak('Ақырын үрле');
+            txt.textContent = 'Ақырын үрле…'; say('breathOut');
             ball.style.transform = 'scale(1)';
           }, 5200);
           T(() => { const d = host.querySelectorAll('.mv-dots i')[c]; if (d) d.className = 'on'; c++; cycle(); }, 9400);
@@ -80,7 +81,7 @@ window.BREAKS = (function () {
     // 3. Көпіршіктер
     function bubbles() {
       const goal = 15;
-      startBtn('Көпіршіктерді басып жар! ' + goal + ' көпіршік жарсаң болды', () => {
+      startBtn('bubblesIntro', () => {
         host.innerHTML = `<div class="bb"><div class="bb-count">🫧 <b>0</b> / ${goal}</div><div class="bb-area"></div></div>`;
         const area = host.querySelector('.bb-area'), cnt = host.querySelector('.bb-count b');
         const cols = ['#7FD3FF', '#B49CFF', '#FF9EC7', '#8FE3B5', '#FFD27F'];
@@ -109,7 +110,7 @@ window.BREAKS = (function () {
 
     // 4. Көбелекті бақыла (көз жаттығуы)
     function eyes() {
-      startBtn('Басыңды қозғалтпа. Көбелекті тек көзіңмен бақыла', () => {
+      startBtn('eyesIntro', () => {
         host.innerHTML = `<div class="ey"><div class="ey-area"><span class="ey-b emo">🦋</span></div><h1 class="ey-t">Солға — оңға</h1><div class="ey-bar"><i></i></div></div>`;
         const area = host.querySelector('.ey-area'), b = host.querySelector('.ey-b'), t = host.querySelector('.ey-t'), bar = host.querySelector('.ey-bar i');
         const phases = [['Солға — оңға', (p) => [Math.sin(p * 6.28 * 2), 0]], ['Жоғары — төмен', (p) => [0, Math.sin(p * 6.28 * 2)]],
@@ -120,7 +121,7 @@ window.BREAKS = (function () {
           if (stopped) return;
           const el = Math.max(0, now - t0); if (el >= total) return finish();
           const pi = Math.floor(el / per), p = (el % per) / per;
-          if (pi !== last) { last = pi; t.textContent = phases[pi][0]; api.speak(phases[pi][0]); }
+          if (pi !== last) { last = pi; t.textContent = phases[pi][0]; say('eyes' + (pi + 1)); }
           const [x, y] = phases[pi][1](p);
           const w = area.clientWidth / 2 - 50, h = area.clientHeight / 2 - 50;
           b.style.transform = `translate(${x * w}px, ${y * h}px)`;
@@ -137,7 +138,7 @@ window.BREAKS = (function () {
       const pics = shuffle(pool).slice(0, 4);
       const cards = shuffle(pics.concat(pics)).map((e, i) => ({ i, e, open: false, ok: false }));
       let first = null, lock = false, found = 0;
-      api.speak('Карталарды ашып, бірдей суреттерді тап');
+      say('memoryIntro');
       host.innerHTML = `<div class="mm"><h1>Бірдей суреттерді тап</h1><div class="mm-grid">${cards.map((c) => `<button class="mm-card" data-i="${c.i}" aria-label="Жабық карта"><span class="mm-in"><span class="mm-back">?</span><span class="mm-front emo">${c.e}</span></span></button>`).join('')}</div><p class="big">Табылды: <b>0</b> / ${pics.length}</p></div>`;
       const els = Array.from(host.querySelectorAll('.mm-card'));
       els.forEach((b) => b.addEventListener('click', () => flip(Number(b.dataset.i))));

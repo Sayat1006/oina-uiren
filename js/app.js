@@ -4,7 +4,7 @@
   const root = document.getElementById('app');
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const LEVEL_NAMES = ['', '1-деңгей', '2-деңгей', '3-деңгей', '4-деңгей'];
-  const LEVEL_DESC = ['', 'Бастапқы: педагогтің көмегімен орындайды', 'Орта: ішінара өз бетімен орындайды', 'Жоғары: өз бетімен орындайды', 'Күрделі: сыныптау, реттілік, заңдылықты өз бетімен орындайды'];
+  const LEVEL_DESC = ['', 'Бастапқы: педагогтің көмегімен орындайды', 'Орта: ішінара өз бетімен орындайды', 'Жоғары: өз бетімен орындайды', 'Күрделі: мәтінді есептер мен өмірлік жағдаяттарды өз бетімен шешеді'];
   const MAXL = 4;
 
   let db = E.store.load();
@@ -22,7 +22,8 @@
     document.body.classList.toggle('contrast', !!s.contrast);
     document.body.classList.toggle('nolabels', !s.labels);
   }
-  const speak = (t) => { if (set().voice) E.say(t); };
+  const speak = (parts, style) => { if (set().voice) E.say(parts, style); };
+  const line = (k) => speak(E.LINES[k][0], E.LINES[k][1]);
   const sfx = (k) => { if (set().sound) E.SFX[k](); };
 
   // ---------- Ақбота (кейіпкер) ----------
@@ -83,7 +84,11 @@
     setTimeout(() => speakTask(), 350);
   }
   function task() { return S.run && S.run.tasks[S.run.i]; }
-  function speakTask() { const t = task(); if (t) speak(t.prompt); }
+  function speakTask() {
+    const t = task(); if (!t) return;
+    const v = t.voice || [t.prompt];
+    speak(t.kind === 'sort' ? v.concat([t.cards[S.run.si].label]) : v, 'say');
+  }
   const praise = () => E.pick(D.PRAISE);
 
   function wrong(id) {
@@ -92,7 +97,7 @@
     sfx('soft'); S.mood = 'think';
     r.feedback = { ok: false, text: E.pick(D.TRY) };
     if (r.taskErr >= set().hintAfter && !r.hint) { r.hint = true; r.hints++; }
-    render(); shake(id); speak(r.feedback.text);
+    render(); shake(id); speak(r.feedback.text, 'calm');
   }
   function shake(id) {
     const el = root.querySelector('[data-id="' + id + '"]');
@@ -104,7 +109,7 @@
     if (r.taskErr === 0) r.correct++;
     r.feedback = { ok: true, text: praise() };
     r.done = true; S.busy = true; S.mood = 'cheer';
-    sfx('good'); speak(r.feedback.text);
+    sfx('good'); speak(r.feedback.text, 'cheer');
     render(); burst();
     setTimeout(() => {
       S.busy = false;
@@ -131,9 +136,9 @@
   }
   function matchClick(side, idx) {
     const r = S.run, t = task(); if (r.done || S.busy) return;
-    if (side === 'L') { if (r.matched['L' + idx]) return; r.sel = idx; sfx('tap'); speak(t.left[idx].label); r.feedback = null; render(); return; }
+    if (side === 'L') { if (r.matched['L' + idx]) return; r.sel = idx; sfx('tap'); speak(t.left[idx].label, 'say'); r.feedback = null; render(); return; }
     if (r.matched['R' + idx]) return;
-    if (r.sel == null) { r.feedback = { ok: false, text: 'Алдымен жануарды таңда' }; render(); speak(r.feedback.text); return; }
+    if (r.sel == null) { r.feedback = { ok: false, text: E.LINES.matchFirst ? E.LINES.matchFirst[0] : 'Алдымен сол жақтан таңда' }; render(); return; }
     if (t.left[r.sel].id === t.right[idx].id) {
       const n = Object.keys(r.matched).length / 2 + 1;
       r.matched['L' + r.sel] = n; r.matched['R' + idx] = n; r.sel = null;
@@ -143,8 +148,8 @@
   function seqClick(id) {
     const r = S.run, t = task(); if (r.done || S.busy || r.seq.indexOf(id) >= 0) return;
     if (id === r.seq.length) {
-      r.seq.push(id); speak(t.steps[id].label);
-      if (r.seq.length === t.steps.length) taskDone(); else partOk('Дұрыс! Ал енді не болады?');
+      r.seq.push(id);
+      if (r.seq.length === t.steps.length) taskDone(); else { partOk(E.LINES.seqOk[0]); speak(t.steps[id].label, 'say'); }
     } else wrong('C' + id);
   }
   function sortClick(bin) {
@@ -152,7 +157,7 @@
     const card = t.cards[r.si];
     if (card.bin === bin) {
       r.placed[card.id] = bin; r.si++;
-      if (r.si === t.cards.length) taskDone(); else partOk();
+      if (r.si === t.cards.length) taskDone(); else { partOk(E.LINES.sortOk[0]); speak(t.cards[r.si].label, 'say'); }
     } else wrong('B' + bin);
   }
 
@@ -176,7 +181,7 @@
     S.end = { stars, correct: r.correct, total: r.tasks.length, change, sticker, level: r.level, newLevel: c.settings.levels[r.key], suggestBreak };
     sfx('win');
     go('end');
-    speak((stars === 3 ? 'Керемет! Сен үш жұлдыз алдың!' : 'Жарайсың! Сен ойынды аяқтадың!') + (suggestBreak ? ' Енді аздап сергиік!' : ''));
+    speak([E.LINES[stars === 3 ? 'end3' : 'end'][0]].concat(change > 0 ? [E.LINES.levelUp[0]] : []).concat(suggestBreak ? [E.LINES.endBreak[0]] : []), 'cheer');
     burst(true);
   }
 
@@ -204,7 +209,7 @@
       speak, sfx, calm: !!set().calm, mascot,
       done: () => {
         const c = child(); if (c) { c.sinceBreak = 0; db.breaks.push({ child: c.id, key, at: Date.now() }); save(); }
-        brkStop = null; S.brkDone = key; render(); sfx('win'); speak('Жарайсың! Енді ойынға оралайық'); burst(true);
+        brkStop = null; S.brkDone = key; render(); sfx('win'); line('breakDone'); burst(true);
       }
     });
   }
@@ -250,7 +255,7 @@
         <div class="hero-m">${mascot('cheer', 170)}</div>
         <div class="hero-t">
           <h1>Ойна да үйрен!</h1>
-          <p>Сәлем! Мен — <b>Ақбота</b>. Бірге түстерді, жануарларды, сандар мен пішіндерді үйренейік!</p>
+          <p>Сәлем! Мен — <b>Ақбота</b>. Бірге есеп шығарып, уақыт пен ақшаны үйреніп, оқып, өмірге керек дағдыларды меңгерейік!</p>
           ${btn('toPlayers', '<span class="play-ico" aria-hidden="true"></span> Ойнау', 'btn big primary')}
         </div>
       </div>
@@ -304,20 +309,23 @@
   }
 
   function vis(o) {
-    if (o.swatch) return `<span class="sw" style="background:${o.swatch}"></span>`;
-    if (o.shape) return `<span class="shp">${E.shapeSvg(o.shape, o.color, 100)}</span>`;
-    if (o.group) return groupHtml(o.group, 'small');
-    if (o.num != null) return `<span class="num">${o.num}</span>`;
+    if (o.clock) return `<span class="pic">${E.clockSvg(o.clock.h, o.clock.m, 130)}</span>`;
+    if (o.money) return `<span class="pic">${E.moneySvg(o.money, 96)}</span>`;
+    if (o.light) return `<span class="pic">${E.lightSvg(o.light, 130)}</span>`;
+    if (o.text) return '';
+    if (o.num != null) return `<span class="num${String(o.num).length >= 4 ? ' long' : ''}">${esc(o.num)}</span>`;
     return `<span class="emo">${o.emoji}</span>`;
   }
   function groupHtml(g, cls) { return `<span class="grp ${cls || ''} g${g.n}">${Array.from({ length: g.n }, () => `<span class="emo">${g.emoji}</span>`).join('')}</span>`; }
 
   function heroHtml(t) {
-    if (t.hero) return `<div class="heroimg"><span class="emo">${t.hero}</span><span class="lbl">${esc(t.heroLabel)}</span></div>`;
-    if (t.heroGroup) return `<div class="heroimg wide">${groupHtml(t.heroGroup)}</div>`;
-    if (t.heroSum) return `<div class="heroimg wide sum">${groupHtml({ emoji: t.heroSum.emoji, n: t.heroSum.a })}<b>+</b>${groupHtml({ emoji: t.heroSum.emoji, n: t.heroSum.b })}<b>=</b><span class="qm">?</span></div>`;
-    if (t.pattern) return `<div class="heroimg wide pat">${t.pattern.map((p) => `<span class="shp">${E.shapeSvg(p.shape, p.color, 64)}</span>`).join('')}<span class="qm">?</span></div>`;
-    return '';
+    const parts = [];
+    if (t.hero) parts.push(`<span class="emo">${t.hero}</span>`);
+    if (t.heroClock) parts.push(`<span class="pic">${E.clockSvg(t.heroClock.h, t.heroClock.m, 220)}</span>`);
+    if (t.heroMoney) parts.push(`<span class="coins">${t.heroMoney.map((v) => E.moneySvg(v, 100)).join('')}</span>`);
+    if (t.heroEq) parts.push(`<span class="eq">${esc(t.heroEq)}</span>`);
+    if (t.heroText) parts.push(`<p class="htext">${esc(t.heroText)}</p>`);
+    return parts.length ? `<div class="heroimg ${t.heroText ? 'txt' : 'wide'}">${parts.join('')}</div>` : '';
   }
 
   function optHtml(o, id, act) {
@@ -327,7 +335,7 @@
     if (t.kind === 'multi' && r.found.indexOf(o.id) >= 0) st = ' isRight';
     if (r.done && t.kind === 'choice' && o.id === t.answer) st = ' isRight';
     if (r.hint && !r.done && ((t.kind === 'choice' && o.id === t.answer) || (t.kind === 'multi' && t.answers.indexOf(o.id) >= 0 && r.found.indexOf(o.id) < 0))) st += ' isHint';
-    return `<button class="opt${st}" data-act="${act || 'choose'}" data-v="${esc(o.id)}" data-id="${esc(id)}" aria-label="${esc(o.label)}">${vis(o)}${o.hideLabel ? '' : `<span class="lbl">${esc(o.label)}</span>`}</button>`;
+    return `<button class="opt${st}" data-act="${act || 'choose'}" data-v="${esc(o.id)}" data-id="${esc(id)}" aria-label="${esc(o.label)}">${vis(o)}${o.text ? `<span class="lbl always">${esc(o.text)}</span>` : (o.hideLabel || o.num != null) ? '' : `<span class="lbl">${esc(o.label)}</span>`}${o.price ? `<span class="price">${o.price} ₸</span>` : ''}</button>`;
   }
 
   function vGame() {
@@ -335,7 +343,7 @@
     const pdots = r.tasks.map((_, i) => `<span class="dot ${i < r.i || (i === r.i && r.done) ? 'done' : i === r.i ? 'cur' : ''}"></span>`).join('');
     let body = '';
     if (t.kind === 'choice' || t.kind === 'multi') {
-      body = `${heroHtml(t)}<div class="opts n${t.options.length}">${t.options.map((o) => optHtml(o, o.id)).join('')}</div>`;
+      body = `${heroHtml(t)}<div class="opts n${t.options.length} ${t.options[0].text ? 'txtopts' : ''}">${t.options.map((o) => optHtml(o, o.id)).join('')}</div>`;
     } else if (t.kind === 'match') {
       body = `<div class="match">
         <div class="mcol">${t.left.map((o, i) => { const m = r.matched['L' + i]; return `<button class="opt sm ${m ? 'isRight m' + m : ''} ${r.sel === i ? 'isSel' : ''}" data-act="mL" data-v="${i}" data-id="L${i}" aria-pressed="${r.sel === i}">${m ? `<b class="pair">${m}</b>` : ''}<span class="emo">${o.emoji}</span><span class="lbl">${esc(o.label)}</span></button>`; }).join('')}</div>
@@ -421,9 +429,9 @@
         ${tog('auto', 'Деңгейді автоматты бейімдеу', '80%-дан жоғары кеңессіз орындаса — деңгей көтеріледі, 40%-дан төмен болса — түседі')}
       </section>
       <section class="card"><h2>Қолдау және қабылдау</h2>
-        ${tog('voice', 'Тапсырманы дауыстап оқу', 'Браузердің сөйлеу синтезі қолданылады' + (E.hasKkVoice() ? ' (қазақ дауысы бар)' : ' (қазақ дауысы табылмады, жақын дауыс қолданылады)'))}
+        ${tog('voice', 'Ақботаның дауысы', 'Тапсырма мен мадақ таза қазақша нейрондық дауыспен айтылады (ISSAI KazakhTTS)')}
         ${tog('sound', 'Дыбыстық белгілер', 'Дұрыс жауапқа — қуанышты, қатеге — жұмсақ дыбыс')}
-        ${tog('labels', 'Суреттің астындағы жазу', 'Оқи алатын балаға көмек. Өшірсе — тек сурет қалады')}
+        ${tog('labels', 'Суреттің астындағы жазу', 'Оқи алатын оқушыға көмек. Өшірсе — тек сурет қалады')}
         ${tog('big', 'Үлкен батырмалар мен мәтін', 'Ұсақ моторикасы әлсіз балаға')}
         ${tog('calm', 'Тыныш режим', 'Анимациялар мен жылдам ауысуларды азайтады')}
         ${tog('contrast', 'Жоғары контраст', 'Көру қабілеті төмен балаға')}
@@ -503,7 +511,7 @@
     toMenu: () => { S.run = null; go('menu'); },
     toSettings: () => go('settings'),
     toPlan: () => go('plan'),
-    toBreaks: () => { S.brkDone = null; go('breaks'); speak('Сергіту сәті! Біреуін таңда'); },
+    toBreaks: () => { S.brkDone = null; go('breaks'); line('breaks'); },
     brk: (v) => { S.brkDone = null; startBreak(v); },
     toGate: () => { if (S.teacherOk) return go('teacher'); S.err = ''; S.gate = { a: 3 + E.rnd(6), b: 3 + E.rnd(6) }; go('gate'); },
     gateOk: () => { const v = Number((document.getElementById('gate') || {}).value); if (v === S.gate.a * S.gate.b) { S.teacherOk = true; S.err = ''; go('teacher'); } else { S.err = 'Жауап қате. Қайталап көріңіз.'; render(); } },
@@ -512,9 +520,9 @@
       const name = ((document.getElementById('pname') || {}).value || '').trim();
       if (name.length < 2) { S.err = 'Баланың атын жазыңыз'; return render(); }
       const c = E.store.newChild(name, S.newAv || D.AVATARS[0]); db.children.push(c); save();
-      S.err = ''; S.newAv = null; S.childId = c.id; go('menu'); speak('Сәлем, ' + c.name + '! Ойын таңда');
+      S.err = ''; S.newAv = null; S.childId = c.id; go('menu'); line('hello');
     },
-    pickChild: (v) => { S.childId = v; go('menu'); speak('Сәлем, ' + child().name + '! Ойын таңда'); },
+    pickChild: (v) => { S.childId = v; go('menu'); line('hello'); },
     play: (v) => startGame(v),
     again: () => startGame(S.game),
     speak: () => speakTask(),
