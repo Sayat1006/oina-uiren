@@ -4,7 +4,7 @@
   const root = document.getElementById('app');
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const LEVEL_NAMES = ['', '1-деңгей', '2-деңгей', '3-деңгей', '4-деңгей'];
-  const LEVEL_DESC = ['', 'Бастапқы: педагогтің көмегімен орындайды', 'Орта: ішінара өз бетімен орындайды', 'Жоғары: өз бетімен орындайды', 'Күрделі: мәтінді есептер мен өмірлік жағдаяттарды өз бетімен шешеді'];
+  const LEVEL_DESC = ['', 'Бастапқы: үлкендердің көмегімен орындайды', 'Орта: ішінара өз бетімен орындайды', 'Жоғары: өз бетімен орындайды', 'Күрделі: мәтінді есептер мен өмірлік жағдаяттарды өз бетімен шешеді'];
   const MAXL = 4;
 
   let db = E.store.load();
@@ -268,14 +268,14 @@
   }
 
   function vHome() {
-    const feats = [['🔊', 'Таза қазақша дауыс', 'Баяу, анық, эмоциясы бар'], ['🎯', '8 ойын × 4 деңгей', 'Оқушыға қарай бейімделеді'], ['🤝', 'Қатесіз оқыту', 'Кеңес пен жұмсақ қолдау'], ['📊', 'Педагог панелі', 'Нәтиже, динамика, Excel']];
+    const feats = [['🔊', 'Таза қазақша дауыс', 'Баяу, анық, жылы дауыс'], ['🎯', '8 ойын × 4 деңгей', 'Балаға қарай бейімделеді'], ['🤝', 'Қателесуден қорықпа', 'Ақбота көмектесіп, жігерлендіреді'], ['📊', 'Ата-ана мен мұғалімге', 'Баланың жетістігі мен өсуі']];
     return `<main class="home">
       <section class="hero">
         <div class="hero-t">
-          <span class="eyebrow">5–6 сынып · ерекше білім беру</span>
+          <span class="eyebrow">5–6 сынып · ойнап үйренеміз</span>
           <h1>Ойна да үйрен!</h1>
           <p>Сәлем! Мен — <b>Ақбота</b>. Бірге есеп шығарып, уақыт пен ақшаны үйреніп, оқып, өмірге керек дағдыларды меңгерейік!</p>
-          <div class="row">${btn('toPlayers', '<span class="play-ico" aria-hidden="true"></span> Ойнауды бастау', 'btn big gold')}${btn('toGate', '👩‍🏫 Педагогке', 'btn big glass')}</div>
+          <div class="row">${btn('toPlayers', '<span class="play-ico" aria-hidden="true"></span> Ойнауды бастау', 'btn big gold')}${btn('toGate', '👨‍👩‍👧 Ата-ана мен мұғалім', 'btn big glass')}</div>
         </div>
         <div class="hero-m">${mascot('cheer', 230)}</div>
       </section>
@@ -287,7 +287,6 @@
           <div class="gitem" style="--bg:#FFEDE6;--ac:#FF7A59"><span class="gico">🤸</span><div><h3>Сергіту сәті</h3><p>Қимыл, тыныс алу, көпіршіктер, көз жаттығуы және «Жұбын тап».</p></div></div>
         </div>
       </section>
-      <nav class="foot">${btn('toPlan', '📋 Қорғау жоспары', 'btn ghost')}</nav>
     </main>`;
   }
 
@@ -495,7 +494,7 @@
 
   function vGate() {
     const g = S.gate;
-    return `${topbar('toHome', 'Педагогке арналған бөлім')}
+    return `${topbar('toHome', 'Ата-ана мен мұғалімге')}
     <main class="wrap narrow"><section class="card center">
       <h2>Ересектерге арналған тексеру</h2>
       <p>Нәтижелер панеліне өту үшін есепті шешіңіз:</p>
@@ -522,11 +521,11 @@
         <div class="row">${btn('tSettings', '⚙️ Баптауларын өзгерту', 'btn ghost', 'data-v="' + sel.id + '"')}${btn('delChild', '🗑 Ойыншыны өшіру', 'btn ghost danger', 'data-v="' + sel.id + '"')}</div>
       </section>`;
     }
-    return `${topbar('toHome', 'Педагог панелі: нәтижелер')}
+    return `${topbar('toHome', 'Балалардың жетістіктері')}
     <main class="wrap">
       <section class="card">
         <h2>Оқушылар деңгейі бойынша</h2>
-        <p class="hint">Жалпы деңгей алты ойынның ағымдағы деңгейінің орташасы бойынша анықталады. Бұл — бәсекелік рейтинг емес, әр баланың жеке даму картасы.</p>
+        <p class="hint">Жалпы деңгей барлық ойынның ағымдағы деңгейінің орташасы бойынша анықталады. Бұл — бәсекелік рейтинг емес, әр баланың жеке даму картасы.</p>
         <div class="legend">${[1, 2, 3, 4].map((l) => `<span class="lv${l}">${LEVEL_NAMES[l]} — ${LEVEL_DESC[l]}</span>`).join('')}</div>
         ${rows.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Оқушы</th><th>Жалпы деңгей</th>${D.GAMES.map((g) => `<th title="${esc(g.title)}">${g.icon}</th>`).join('')}<th>Ойын</th><th>Бірден дұрыс</th><th>Кеңес</th><th>Сергіту</th><th>Уақыт</th><th>Соңғы ойын</th></tr></thead><tbody>
           ${rows.map((x) => `<tr class="${sel && sel.id === x.c.id ? 'sel' : ''}" data-act="tPick" data-v="${x.c.id}" tabindex="0"><td><b>${esc(x.c.avatar)} ${esc(x.c.name)}</b></td><td><span class="lvb lv${x.lvl}">${LEVEL_NAMES[x.lvl]}</span></td>${D.GAMES.map((g) => `<td>${x.c.settings.levels[g.key]}</td>`).join('')}<td>${x.st.n}</td><td>${x.st.acc == null ? '—' : x.st.acc + '%'}</td><td>${x.st.hints}</td><td>${x.br}</td><td>${fmtSecs(x.st.secs)}</td><td>${fmtDate(x.st.last)}</td></tr>`).join('')}
@@ -535,10 +534,11 @@
       ${detail}
       <div class="row">${btn('csv', '⬇ CSV жүктеу (Excel)', 'btn primary', db.results.length ? '' : 'disabled')}${btn('wipe', 'Барлық нәтижені тазалау', 'btn ghost danger', db.results.length ? '' : 'disabled')}</div>
       <p class="hint">Деректер тек осы компьютердің браузерінде сақталады және интернетке жіберілмейді.</p>
+      <div class="row">${btn('toPlan', '📋 Семинарға арналған қорғау жоспары', 'btn ghost')}</div>
     </main>`;
   }
 
-  function vPlan() { return topbar('toHome', 'Семинарда қорғау жоспары') + '<main class="wrap plan">' + window.PLAN_HTML + '</main>'; }
+  function vPlan() { return topbar('toGate', 'Семинарда қорғау жоспары') + '<main class="wrap plan">' + window.PLAN_HTML + '</main>'; }
 
   const VIEWS = { home: vHome, players: vPlayers, menu: vMenu, game: vGame, end: vEnd, settings: vSettings, gate: vGate, teacher: vTeacher, plan: vPlan, breaks: vBreaks, brk: vBrk };
   function render() {
