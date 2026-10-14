@@ -79,7 +79,7 @@
     const tasks = E.MAKE[key](lvl, c.settings.perRound);
     S.game = key;
     S.run = { key, level: lvl, tasks, i: 0, t0: Date.now(), correct: 0, errors: 0, hints: 0, taskErr: 0, done: false,
-      sel: null, matched: {}, seq: [], found: [], si: 0, placed: {}, wrong: {}, hint: false, feedback: null };
+      sel: null, matched: {}, seq: [], found: [], si: 0, placed: {}, wrong: {}, hint: false, feedback: null, typed: '' };
     S.mood = 'happy';
     go('game');
     setTimeout(() => speakTask(), 350);
@@ -116,7 +116,7 @@
       S.busy = false;
       if (r !== S.run || S.screen !== 'game') return;
       if (r.i < r.tasks.length - 1) {
-        Object.assign(r, { i: r.i + 1, taskErr: 0, done: false, sel: null, matched: {}, seq: [], found: [], si: 0, placed: {}, wrong: {}, hint: false, feedback: null });
+        Object.assign(r, { i: r.i + 1, taskErr: 0, done: false, sel: null, matched: {}, seq: [], found: [], si: 0, placed: {}, wrong: {}, hint: false, feedback: null, typed: '' });
         S.mood = 'happy'; render(); speakTask();
       } else finish();
     }, set().calm ? 1700 : 1300);
@@ -160,6 +160,18 @@
       r.placed[card.id] = bin; r.si++;
       if (r.si === t.cards.length) taskDone(); else { partOk(E.LINES.sortOk[0]); speak(t.cards[r.si].label, 'say'); }
     } else wrong('B' + bin);
+  }
+
+  function keyPress(k) {
+    const r = S.run, t = task(); if (!r || r.done || S.busy || t.kind !== 'input') return;
+    if (k === 'back') r.typed = r.typed.slice(0, -1);
+    else if (k === 'ok') {
+      if (!r.typed) return;
+      if (r.typed === t.answer) return taskDone();
+      r.typed = ''; return wrong('kp');
+    } else if (r.typed.length < 5) { r.typed += k; sfx('tap'); }
+    r.feedback = r.feedback && r.feedback.ok === false ? r.feedback : null;
+    render();
   }
 
   function finish() {
@@ -222,6 +234,9 @@
     return { n: rs.length, acc: tot ? Math.round(cor * 100 / tot) : null, hints: rs.reduce((s, r) => s + r.hints, 0), errors: rs.reduce((s, r) => s + r.errors, 0),
       secs: rs.reduce((s, r) => s + r.secs, 0), last: rs.length ? rs[rs.length - 1].at : null, rs };
   }
+  const starsOf = (cid, key) => db.results.filter((r) => r.child === cid && (!key || r.game === key)).reduce((s, r) => s + r.stars, 0);
+  const bestOf = (cid, key) => db.results.filter((r) => r.child === cid && r.game === key).reduce((m, r) => Math.max(m, r.stars), 0);
+  const todayOf = (cid) => { const d = new Date().toDateString(); return db.results.filter((r) => r.child === cid && new Date(r.at).toDateString() === d).length; };
   function overallLevel(c) {
     const ls = D.GAMES.map((g) => c.settings.levels[g.key] || 1);
     return Math.round(ls.reduce((a, b) => a + b, 0) / ls.length);
@@ -239,38 +254,40 @@
 
   // ---------- экрандар ----------
   const btn = (act, html, cls, extra) => `<button class="${cls || 'btn'}" data-act="${act}" ${extra || ''}>${html}</button>`;
-  const dots = (l) => `<span class="ldots" aria-label="${LEVEL_NAMES[l]}">${[1, 2, 3, 4].map((i) => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}</span>`;
 
   function topbar(back, title) {
     const c = child();
-    return `<header class="top">
-      ${back ? btn(back, '<span aria-hidden="true">⬅</span> Артқа', 'btn ghost', 'aria-label="Артқа"') : '<span></span>'}
-      <div class="toptitle">${esc(title || '')}</div>
-      ${c ? `<div class="me"><span class="av">${esc(c.avatar)}</span><span>${esc(c.name)}</span></div>` : '<span></span>'}
+    return `<header class="appbar">
+      <div class="ab-left">
+        ${back ? btn(back, '<span aria-hidden="true">←</span>', 'iconbtn', 'aria-label="Артқа"') : ''}
+        <button class="brand" data-act="toHome" aria-label="Басты бет">${mascot('happy', 40)}<b>Ойна да үйрен!</b></button>
+      </div>
+      <h1 class="ab-title">${esc(title || '')}</h1>
+      <div class="ab-right">${c ? `<div class="me"><span class="av">${esc(c.avatar)}</span><span class="nm">${esc(c.name)}</span><span class="st" title="Жинаған жұлдыздар">⭐ ${starsOf(c.id)}</span></div>` : ''}</div>
     </header>`;
   }
 
   function vHome() {
+    const feats = [['🔊', 'Таза қазақша дауыс', 'Баяу, анық, эмоциясы бар'], ['🎯', '8 ойын × 4 деңгей', 'Оқушыға қарай бейімделеді'], ['🤝', 'Қатесіз оқыту', 'Кеңес пен жұмсақ қолдау'], ['📊', 'Педагог панелі', 'Нәтиже, динамика, Excel']];
     return `<main class="home">
-      <div class="hero">
-        <div class="hero-m">${mascot('cheer', 170)}</div>
+      <section class="hero">
         <div class="hero-t">
+          <span class="eyebrow">5–6 сынып · ерекше білім беру</span>
           <h1>Ойна да үйрен!</h1>
           <p>Сәлем! Мен — <b>Ақбота</b>. Бірге есеп шығарып, уақыт пен ақшаны үйреніп, оқып, өмірге керек дағдыларды меңгерейік!</p>
-          ${btn('toPlayers', '<span class="play-ico" aria-hidden="true"></span> Ойнау', 'btn big primary')}
+          <div class="row">${btn('toPlayers', '<span class="play-ico" aria-hidden="true"></span> Ойнауды бастау', 'btn big gold')}${btn('toGate', '👩‍🏫 Педагогке', 'btn big glass')}</div>
         </div>
-      </div>
+        <div class="hero-m">${mascot('cheer', 230)}</div>
+      </section>
+      <section class="feats">${feats.map((f) => `<div class="feat"><span class="fi">${f[0]}</span><b>${f[1]}</b><small>${f[2]}</small></div>`).join('')}</section>
       <section class="inside">
-        <h2>Ойынның ішінде не бар?</h2>
-        <div class="glist">${D.GAMES.map((g, i) => `
-          <div class="gitem" style="--bg:${g.bg};--ac:${g.accent}"><span class="gico">${g.icon}</span><div><h3>${i + 1}. ${esc(g.title)}</h3><p>${esc(g.goal)}</p><span class="tagl">4 деңгей</span></div></div>`).join('')}
-          <div class="gitem" style="--bg:#FFEDE6;--ac:#FF7A59"><span class="gico">🤸</span><div><h3>${D.GAMES.length + 1}. Сергіту сәті</h3><p>Қимыл жаттығуы, тыныс алу, көпіршіктер, көзге арналған жаттығу және «Жұбын тап» ойыны.</p><span class="tagl">5 жаттығу</span></div></div>
+        <h2>Ойындар</h2>
+        <div class="glist">${D.GAMES.map((g) => `
+          <div class="gitem" style="--bg:${g.bg};--ac:${g.accent}"><span class="gico">${g.icon}</span><div><h3>${esc(g.title)}</h3><p>${esc(g.goal)}</p></div></div>`).join('')}
+          <div class="gitem" style="--bg:#FFEDE6;--ac:#FF7A59"><span class="gico">🤸</span><div><h3>Сергіту сәті</h3><p>Қимыл, тыныс алу, көпіршіктер, көз жаттығуы және «Жұбын тап».</p></div></div>
         </div>
       </section>
-      <nav class="foot">
-        ${btn('toGate', '👩‍🏫 Педагогке', 'btn ghost')}
-        ${btn('toPlan', '📋 Қорғау жоспары', 'btn ghost')}
-      </nav>
+      <nav class="foot">${btn('toPlan', '📋 Қорғау жоспары', 'btn ghost')}</nav>
     </main>`;
   }
 
@@ -294,17 +311,35 @@
   function vMenu() {
     const c = child();
     const brk = c.settings.breakEvery > 0 && c.sinceBreak >= c.settings.breakEvery;
+    const today = todayOf(c.id), goal = 3, pct = Math.min(100, Math.round(today * 100 / goal));
     return `${topbar('toPlayers', 'Ойын таңда')}
     <main class="wrap">
-      ${bubble(brk ? 'Біраз ойнадық! Сергіту сәтін жасайық па? 🤸' : 'Қай ойынды ойнаймыз, ' + esc(c.name) + '?', brk ? 'cheer' : 'happy', 96)}
-      <div class="mgrid">${D.GAMES.map((g) => {
-        const l = c.settings.levels[g.key];
-        return `<button class="mcard" style="--bg:${g.bg};--ac:${g.accent}" data-act="play" data-v="${g.key}">
-          <span class="mico">${g.icon}</span><span class="mtitle">${esc(g.title)}</span>${dots(l)}<small class="mlv">${LEVEL_NAMES[l]}</small></button>`;
+      <section class="welcome">
+        <div class="wl-m">${mascot(brk ? 'cheer' : 'happy', 110)}</div>
+        <div class="wl-t">
+          <h2>Сәлем, ${esc(c.name)}!</h2>
+          <p>${brk ? 'Біраз ойнадық! Сергіту сәтін жасайық па? 🤸' : 'Бүгін қай ойынды ойнаймыз?'}</p>
+        </div>
+        <div class="goal" role="img" aria-label="Бүгінгі мақсат: ${today} / ${goal} ойын">
+          <span class="ring" style="--p:${pct}"><b>${Math.min(today, goal)}/${goal}</b></span>
+          <span><b>Бүгінгі мақсат</b><small>${today >= goal ? 'Орындалды! 🎉' : 'Тағы ' + (goal - today) + ' ойын ойна'}</small></span>
+        </div>
+      </section>
+      <div class="tiles">${D.GAMES.map((g) => {
+        const l = c.settings.levels[g.key], best = bestOf(c.id, g.key);
+        return `<button class="tile" style="--bg:${g.bg};--ac:${g.accent}" data-act="play" data-v="${g.key}">
+          <span class="tile-top"><span class="tile-ico">${g.icon}</span><span class="tile-lv">${LEVEL_NAMES[l]}</span></span>
+          <span class="tile-title">${esc(g.title)}</span>
+          <span class="tile-sub">${esc(g.levels[l - 1])}</span>
+          <span class="tile-foot"><span class="tile-bar"><i style="width:${l * 25}%"></i></span><span class="tile-stars" aria-label="Ең жақсы нәтиже: ${best} жұлдыз">${'★'.repeat(best)}<em>${'★'.repeat(3 - best)}</em></span></span>
+        </button>`;
       }).join('')}
-        <button class="mcard brkcard ${brk ? 'pulse' : ''}" style="--bg:#FFEDE6;--ac:#FF7A59" data-act="toBreaks"><span class="mico">🤸</span><span class="mtitle">Сергіту сәті</span><small class="mlv">Демалып аламыз</small></button>
+        <button class="tile brk ${brk ? 'pulse' : ''}" style="--bg:#FFEDE6;--ac:#FF7A59" data-act="toBreaks">
+          <span class="tile-top"><span class="tile-ico">🤸</span><span class="tile-lv">5 жаттығу</span></span>
+          <span class="tile-title">Сергіту сәті</span><span class="tile-sub">Денені сергітіп, демаламыз</span>
+        </button>
       </div>
-      ${c.stickers.length ? `<section class="card"><h2>Менің жапсырмаларым (${c.stickers.length})</h2><div class="stk">${c.stickers.slice(-40).map((s) => `<span>${esc(s)}</span>`).join('')}</div></section>` : ''}
+      ${c.stickers.length ? `<section class="card"><h2>Менің жапсырмаларым <small>(${c.stickers.length})</small></h2><div class="stk">${c.stickers.slice(-40).map((s) => `<span>${esc(s)}</span>`).join('')}</div></section>` : ''}
       <div class="row center">${btn('toSettings', '⚙️ Баптаулар', 'btn ghost')}</div>
     </main>`;
   }
@@ -314,7 +349,7 @@
     if (o.money) return `<span class="pic">${E.moneySvg(o.money, 96)}</span>`;
     if (o.light) return `<span class="pic">${E.lightSvg(o.light, 130)}</span>`;
     if (o.text) return '';
-    if (o.num != null) return `<span class="num${String(o.num).length >= 4 ? ' long' : ''}">${esc(o.num)}</span>`;
+    if (o.num != null) return `<span class="num${String(o.num).length >= 4 ? ' long' : String(o.num).length === 3 ? ' mid' : ''}">${esc(o.num)}</span>`;
     return `<span class="emo">${o.emoji}</span>`;
   }
   function groupHtml(g, cls) { return `<span class="grp ${cls || ''} g${g.n}">${Array.from({ length: g.n }, () => `<span class="emo">${g.emoji}</span>`).join('')}</span>`; }
@@ -329,22 +364,22 @@
     return parts.length ? `<div class="heroimg ${t.heroText ? 'txt' : 'wide'}">${parts.join('')}</div>` : '';
   }
 
-  function optHtml(o, id, act) {
+  function optHtml(o, id, act, idx) {
     const r = S.run, t = task();
     let st = '';
     if (r.wrong[id]) st = ' isWrong';
     if (t.kind === 'multi' && r.found.indexOf(o.id) >= 0) st = ' isRight';
     if (r.done && t.kind === 'choice' && o.id === t.answer) st = ' isRight';
     if (r.hint && !r.done && ((t.kind === 'choice' && o.id === t.answer) || (t.kind === 'multi' && t.answers.indexOf(o.id) >= 0 && r.found.indexOf(o.id) < 0))) st += ' isHint';
-    return `<button class="opt${st}" data-act="${act || 'choose'}" data-v="${esc(o.id)}" data-id="${esc(id)}" aria-label="${esc(o.label)}">${vis(o)}${o.text ? `<span class="lbl always">${esc(o.text)}</span>` : (o.hideLabel || o.num != null) ? '' : `<span class="lbl">${esc(o.label)}</span>`}${o.price ? `<span class="price">${o.price} ₸</span>` : ''}</button>`;
+    return `<button class="opt${st}" data-act="${act || 'choose'}" data-v="${esc(o.id)}" data-id="${esc(id)}" aria-label="${esc(o.label)}">${idx != null ? `<span class="key" aria-hidden="true">${idx + 1}</span>` : ''}${vis(o)}${o.text ? `<span class="lbl always">${esc(o.text)}</span>` : (o.hideLabel || o.num != null) ? '' : `<span class="lbl">${esc(o.label)}</span>`}${o.price ? `<span class="price">${o.price} ₸</span>` : ''}</button>`;
   }
 
   function vGame() {
     const r = S.run, t = task(), g = game(r.key);
-    const pdots = r.tasks.map((_, i) => `<span class="dot ${i < r.i || (i === r.i && r.done) ? 'done' : i === r.i ? 'cur' : ''}"></span>`).join('');
+    const doneN = r.i + (r.done ? 1 : 0), pct = Math.round(doneN * 100 / r.tasks.length);
     let body = '';
     if (t.kind === 'choice' || t.kind === 'multi') {
-      body = `${heroHtml(t)}<div class="opts n${t.options.length} ${t.options[0].text ? 'txtopts' : ''}">${t.options.map((o) => optHtml(o, o.id)).join('')}</div>`;
+      body = `${heroHtml(t)}<div class="opts n${t.options.length} ${t.options[0].text ? 'txtopts' : ''}">${t.options.map((o, i) => optHtml(o, o.id, null, i)).join('')}</div>`;
     } else if (t.kind === 'match') {
       body = `<div class="match">
         <div class="mcol">${t.left.map((o, i) => { const m = r.matched['L' + i]; return `<button class="opt sm ${m ? 'isRight m' + m : ''} ${r.sel === i ? 'isSel' : ''}" data-act="mL" data-v="${i}" data-id="L${i}" aria-pressed="${r.sel === i}">${m ? `<b class="pair">${m}</b>` : ''}<span class="emo">${o.emoji}</span><span class="lbl">${esc(o.label)}</span></button>`; }).join('')}</div>
@@ -356,6 +391,13 @@
         <div class="opts n${t.cards.length}">${t.cards.filter((c) => r.seq.indexOf(c.id) < 0).map((c) => {
           const hint = r.hint && c.id === r.seq.length;
           return `<button class="opt ${r.wrong['C' + c.id] ? 'isWrongSoft' : ''} ${hint ? 'isHint' : ''}" data-act="seq" data-v="${c.id}" data-id="C${c.id}" aria-label="${esc(c.label)}"><span class="emo">${c.emoji}</span><span class="lbl">${esc(c.label)}</span></button>`; }).join('')}</div>`;
+    } else if (t.kind === 'input') {
+      const ghost = r.hint && !r.typed ? `<span class="ghost">${esc(t.answer)}</span>` : '';
+      body = `${heroHtml(t)}<div class="kp">
+        <div class="kp-screen" data-id="kp" aria-live="polite">${r.typed ? esc(r.typed) : ghost || '<span class="ph">?</span>'}</div>
+        <div class="kp-grid">${['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => `<button class="kbtn" data-act="kp" data-v="${d}">${d}</button>`).join('')}
+          <button class="kbtn soft" data-act="kp" data-v="back" aria-label="Өшіру">⌫</button><button class="kbtn" data-act="kp" data-v="0">0</button><button class="kbtn okb" data-act="kp" data-v="ok" aria-label="Тексеру">✔</button></div>
+      </div>`;
     } else if (t.kind === 'sort') {
       const card = t.cards[Math.min(r.si, t.cards.length - 1)];
       const binHtml = (b) => {
@@ -372,38 +414,44 @@
     const word = t.word && r.level <= 2 ? `<span class="cw" style="--c:${t.wordColor}">${esc(t.word)}</span>` : '';
     const ptxt = word ? esc(t.prompt).replace(esc(t.word), word) : esc(t.prompt);
     return `<div class="gscreen" style="--bg:${g.bg};--ac:${g.accent}">
-      <header class="top">
-        ${btn('toMenu', '🏠', 'btn ghost round', 'aria-label="Ойын мәзіріне қайту"')}
-        <div class="dots" aria-label="Тапсырма ${r.i + 1} / ${r.tasks.length}">${pdots}</div>
-        <span class="lvlchip">${g.icon} ${LEVEL_NAMES[r.level]}</span>
+      <header class="gbar">
+        ${btn('toMenu', '<span aria-hidden="true">✕</span>', 'iconbtn', 'aria-label="Ойын мәзіріне қайту"')}
+        <div class="gtitle"><span class="gi">${g.icon}</span><span><b>${esc(g.title)}</b><small>${LEVEL_NAMES[r.level]} · ${esc(g.levels[r.level - 1])}</small></span></div>
+        <div class="gprog" role="progressbar" aria-valuemin="0" aria-valuemax="${r.tasks.length}" aria-valuenow="${doneN}" aria-label="Тапсырма ${r.i + 1} / ${r.tasks.length}"><span class="bar"><i style="width:${pct}%"></i></span><b>${r.i + 1} / ${r.tasks.length}</b></div>
+        <span class="gstars" aria-label="Бірден дұрыс: ${r.correct}">⭐ ${r.correct}</span>
       </header>
       <main class="play">
         <div class="prompt"><div class="buddy-m">${mascot(S.mood, 92)}</div><div class="say big"><h1>${ptxt}</h1>${btn('speak', '🔊', 'btn round speak', 'aria-label="Тапсырманы тыңдау"')}</div></div>
-        ${body}
+        <section class="stage">${body}</section>
         ${fb}
       </main>
     </div>`;
   }
 
   function vEnd() {
-    const e = S.end, g = game(S.game);
+    const e = S.end, g = game(S.game), r = S.run;
+    const secs = r ? Math.round((Date.now() - r.t0) / 1000) : 0;
     return `<div class="gscreen" style="--bg:${g.bg};--ac:${g.accent}">
       <main class="end">
-        <div class="end-m">${mascot('cheer', 140)}</div>
-        <div class="stars">${[1, 2, 3].map((i) => `<span class="${i <= e.stars ? 'on' : ''}" style="animation-delay:${i * 0.2}s">★</span>`).join('')}</div>
-        <h1>${e.stars === 3 ? 'Керемет!' : e.stars === 2 ? 'Жарайсың!' : 'Сен тырыстың, бәрекелді!'}</h1>
-        <p class="big">${e.correct} / ${e.total} тапсырманы бірден орындадың</p>
-        <div class="sticker"><span>${e.sticker}</span><small>Жаңа жапсырма!</small></div>
-        ${e.change > 0 ? `<p class="lvup">🎉 ${LEVEL_NAMES[e.newLevel]} ашылды!</p>` : ''}
-        <div class="row center">
-          ${e.suggestBreak ? btn('toBreaks', '🤸 Сергіту сәті', 'btn big primary pulse') : ''}
-          ${btn('again', '🔁 Тағы ойнау', 'btn big ' + (e.suggestBreak ? 'ghost' : 'primary'))}
-          ${btn('toMenu', '🎮 Басқа ойын', 'btn big ghost')}
-        </div>
+        <section class="result">
+          <div class="end-m">${mascot('cheer', 130)}</div>
+          <div class="stars">${[1, 2, 3].map((i) => `<span class="${i <= e.stars ? 'on' : ''}" style="animation-delay:${i * 0.2}s">★</span>`).join('')}</div>
+          <h1>${e.stars === 3 ? 'Керемет!' : e.stars === 2 ? 'Жарайсың!' : 'Сен тырыстың, бәрекелді!'}</h1>
+          <div class="rstats">
+            <div><b>${e.correct} / ${e.total}</b><small>бірден дұрыс</small></div>
+            <div><b>${g.icon} ${LEVEL_NAMES[e.level]}</b><small>${esc(g.title)}</small></div>
+            <div><b>${e.sticker}</b><small>жаңа жапсырма</small></div>
+          </div>
+          ${e.change > 0 ? `<p class="lvup">🎉 ${LEVEL_NAMES[e.newLevel]} ашылды!</p>` : ''}
+          <div class="row center">
+            ${e.suggestBreak ? btn('toBreaks', '🤸 Сергіту сәті', 'btn big primary pulse') : ''}
+            ${btn('again', '🔁 Тағы ойнау', 'btn big ' + (e.suggestBreak ? 'ghost' : 'primary'))}
+            ${btn('toMenu', '🎮 Басқа ойын', 'btn big ghost')}
+          </div>
+        </section>
       </main>
     </div>`;
   }
-
   function vBreaks() {
     return `${topbar('toMenu', 'Сергіту сәті')}
     <main class="wrap">
@@ -414,7 +462,7 @@
   function vBrk() {
     const b = D.BREAKS.find((x) => x.key === S.brk);
     return `<div class="gscreen brkscreen" style="--bg:#FFF6EE;--ac:${b.color}">
-      <header class="top">${btn('toBreaks', '⬅ Артқа', 'btn ghost')}<div class="toptitle">${b.icon} ${esc(b.title)}</div><span></span></header>
+      <header class="gbar">${btn('toBreaks', '<span aria-hidden="true">✕</span>', 'iconbtn', 'aria-label="Артқа"')}<div class="gtitle"><span class="gi">${b.icon}</span><span><b>${esc(b.title)}</b><small>Сергіту сәті</small></span></div></header>
       <main class="play"><div id="brkhost" class="brkhost">${S.brkDone === S.brk ? `<div class="end">${mascot('cheer', 140)}<h1>Жарайсың!</h1><p class="big">Денең сергіді. Енді ойынға оралайық!</p><div class="row center">${btn('toMenu', '🎮 Ойынға оралу', 'btn big primary')}${btn('toBreaks', '🤸 Тағы сергу', 'btn big ghost')}</div></div>` : ''}</div></main>
     </div>`;
   }
@@ -533,6 +581,7 @@
     mR: (v) => matchClick('R', Number(v)),
     seq: (v) => seqClick(Number(v)),
     sortB: (v) => sortClick(v),
+    kp: (v) => keyPress(v),
     setLvl: (v, el) => { set().levels[el.dataset.g] = Number(v); save(); render(); },
     setN: (v) => { set().perRound = Number(v); save(); render(); },
     setH: (v) => { set().hintAfter = Number(v); save(); render(); },
@@ -563,6 +612,13 @@
   document.addEventListener('keydown', (e) => {
     if (S.screen !== 'game' || e.target.tagName === 'INPUT') return;
     if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') return speakTask();
+    const t = task();
+    if (t && t.kind === 'input') {
+      if (/^[0-9]$/.test(e.key)) keyPress(e.key);
+      else if (e.key === 'Backspace') keyPress('back');
+      else if (e.key === 'Enter') keyPress('ok');
+      return;
+    }
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= 9) { const opts = root.querySelectorAll('.play .opt'); if (opts[n - 1]) opts[n - 1].click(); }
   });

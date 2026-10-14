@@ -98,9 +98,9 @@
           return { kind: 'choice', prompt: 'Есепті шығар', hero: w.e, heroText: txt, voice: v, options: numOpts(a - b, [-1, 1, 10, b]), answer: String(a - b) };
         }
         const k = i % 4;
-        if (k === 0) { const a = pick([2, 3, 4, 5, 10]), b = between(2, 9); return { kind: 'choice', prompt: 'Есепте', heroEq: `${a} × ${b} = ?`, voice: ['Есепте:', a, 'көбейту', b], options: numOpts(a * b, [a, -a, 1, -1]), answer: String(a * b) }; }
+        if (k === 0) { const a = pick([2, 3, 4, 5, 10]), b = between(2, 9); return { kind: 'input', prompt: 'Есепте де, жауабын пернетақтамен жаз', heroEq: `${a} × ${b} = ?`, voice: ['Есепте:', a, 'көбейту', b, 'Жауабын пернетақтамен жаз.'], answer: String(a * b) }; }
         if (k === 1) { const b = pick([2, 3, 4, 5]), q = between(2, 9); return { kind: 'choice', prompt: 'Есепте', heroEq: `${b * q} : ${b} = ?`, voice: ['Есепте:', b * q, 'бөлу', b], options: numOpts(q, [1, -1, 2]), answer: String(q) }; }
-        if (k === 2) { const w = pick(D.WORD_MUL); const a = pick([2, 3, 4, 5, 6]), b = between(2, 5); const [txt, v] = w.t(a, b); return { kind: 'choice', prompt: 'Есепті шығар', hero: w.e, heroText: txt, voice: v, options: numOpts(a * b, [a, -a, b]), answer: String(a * b) }; }
+        if (k === 2) { const w = pick(D.WORD_MUL); const a = w.fixA || pick([2, 3, 4, 5, 6]), b = between(2, 5); const [txt, v] = w.t(a, b); return { kind: 'choice', prompt: 'Есепті шығар', hero: w.e, heroText: txt, voice: v, options: numOpts(a * b, [a, -a, b]), answer: String(a * b) }; }
         const w = pick(D.WORD_DIV); const kk = pick([2, 3, 4, 5]), q = between(2, 6); const [txt, v] = w.t(kk * q, kk);
         return { kind: 'choice', prompt: 'Есепті шығар', hero: w.e, heroText: txt, voice: v, options: numOpts(q, [1, -1, 2]), answer: String(q) };
       });
@@ -187,6 +187,8 @@
         }
         if (i % 2 === 0) {
           const g = pick(D.GOODS), pay = g.p < 450 ? pick([500, 1000]) : 1000, ch = pay - g.p;
+          if (i % 4 === 2) return { kind: 'input', prompt: 'Қайтарымды есептеп, пернетақтамен жаз', hero: g.e, heroMoney: [pay], heroText: `Сен ${pay} теңге бердің. ${g.n} ${g.p} теңге тұрады.`,
+            voice: ['Сен', pay, 'теңге бердің.', g.n, g.p, 'теңге тұрады.', 'Қанша қайтарым аласың?', 'Жауабын пернетақтамен жаз.'], answer: String(ch) };
           return { kind: 'choice', prompt: 'Қанша қайтарым аласың?', hero: g.e, heroMoney: [pay], heroText: `Сен ${pay} теңге бердің. ${g.n} ${g.p} теңге тұрады.`,
             voice: ['Сен', pay, 'теңге бердің.', g.n, g.p, 'теңге тұрады.', 'Қанша қайтарым аласың?'], options: numOpts(ch, [10, -10, 100, -100], 10), answer: String(ch) };
         }
@@ -259,6 +261,35 @@
       });
     }
   };
+
+  Object.assign(MAKE, {
+    home(level, n) {
+      if (level === 1) {
+        return cycle(D.ROOM_ITEMS, n).map((it) => ({ kind: 'choice', prompt: `${it[1]} қай бөлмеде тұрады?`, hero: it[0], voice: [it[1], 'қай бөлмеде тұрады?'],
+          options: Object.keys(D.ROOMS).map((k) => ({ id: k, emoji: D.ROOMS[k][0], label: D.ROOMS[k][1] })), answer: it[2] }));
+      }
+      if (level === 2) return cycle(D.HOME_USES, n).map((q) => ({ kind: 'choice', prompt: q.q, hero: q.e, options: textOpts(q.o), answer: q.a }));
+      if (level === 3) return cycle(D.HOME_SORTS, n).map((s) => sortTask(s.q, s.bins, { a: s.a, b: s.b }, 3));
+      return cycle(D.HOME_SEQ, n).map(seqTask);
+    },
+    emo(level, n) {
+      if (level === 1) {
+        return cycle(D.EMOTIONS, n).map((em) => {
+          const others = shuffle(D.EMOTIONS.filter((x) => x.id !== em.id)).slice(0, 3);
+          return { kind: 'choice', prompt: `${em.acc} бетті тап`, voice: [em.acc, 'бетті тап'],
+            options: shuffle([em].concat(others)).map((x) => ({ id: x.id, emoji: x.e, label: x.name, hideLabel: true })), answer: em.id };
+        });
+      }
+      if (level === 2) {
+        return cycle(D.FEELINGS, n).map((f) => {
+          const others = shuffle(D.EMOTIONS.filter((x) => x.id !== f.a)).slice(0, 2);
+          return { kind: 'choice', prompt: f.q, hero: f.e, options: shuffle([D.EMOTIONS.find((x) => x.id === f.a)].concat(others)).map((x) => ({ id: x.id, emoji: x.e, label: x.name })), answer: f.a };
+        });
+      }
+      if (level === 3) return cycle(D.POLITE, n).map((q) => ({ kind: 'choice', prompt: q.q, hero: q.e, options: textOpts(q.o), answer: q.a }));
+      return cycle(D.SOCIAL, n).map((q) => ({ kind: 'choice', prompt: q.q, hero: q.e, options: textOpts(q.o), answer: q.a }));
+    }
+  });
 
   // ---------- дыбыс белгілері ----------
   let ctx = null;
@@ -355,13 +386,14 @@
     bubblesIntro: ['Көпіршіктерді басып жар! Он бес көпіршік жарсаң болды.', 'cheer'],
     eyesIntro: ['Басыңды қозғалтпа. Көбелекті тек көзіңмен бақыла.', 'calm'],
     eyes1: ['Солға, оңға.', 'calm'], eyes2: ['Жоғары, төмен.', 'calm'], eyes3: ['Шеңбер бойымен.', 'calm'], eyes4: ['Сегіз сызамыз.', 'calm'],
-    memoryIntro: ['Карталарды ашып, бірдей суреттерді тап.', 'say']
+    memoryIntro: ['Карталарды ашып, бірдей суреттерді тап.', 'say'],
+    inputWrong: ['Жауапты тексеріп, қайта жаз.', 'calm']
   };
 
   // ---------- сақтау ----------
   const KEY = 'oina-uiren.v3';
   const DEFAULTS = { voice: true, sound: true, labels: true, big: false, calm: false, contrast: false, perRound: 5, hintAfter: 1, auto: true, breakEvery: 2, voiceRate: 1,
-    levels: { math: 1, time: 1, money: 1, read: 1, world: 1, life: 1 } };
+    levels: { math: 1, time: 1, money: 1, read: 1, world: 1, life: 1, home: 1, emo: 1 } };
   const store = {
     load() {
       let d; try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; }
