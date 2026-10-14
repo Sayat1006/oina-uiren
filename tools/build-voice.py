@@ -98,7 +98,8 @@ def main():
                 f"afade=t=in:d=0.012,areverse,afade=t=in:d=0.04,areverse,apad=pad_dur=0.05")
         # Қаттылықты екі өтуде теңестіру: алдымен өлшеу, сосын сызықтық түзету
         ln = f"loudnorm=I={st['lufs']}:TP=-1.5:LRA=11"
-        r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', wav_path, '-af', base + ',' + ln + ':print_format=json', '-f', 'null', '-'],
+        # Өте қысқа сөз (мысалы, «бір») 0,4 с-тан қысқа болса, қаттылықты өлшеу мүмкін емес: өлшеуде файл 4 рет қайталанады
+        r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', wav_path, '-af', base + ',aloop=loop=3:size=2000000,' + ln + ':print_format=json', '-f', 'null', '-'],
                            capture_output=True, text=True, check=True)
         m = json.loads(r.stderr[r.stderr.rindex('{'):r.stderr.rindex('}') + 1])
         ln2 = (f"{ln}:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
